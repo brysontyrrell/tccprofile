@@ -73,7 +73,7 @@ def readPlistFromString(data):
 
 
 class PrivacyProfiles():
-    def __init__(self, payload_description, payload_name, payload_identifier, payload_organization, payload_version, profile_filename):
+    def __init__(self, payload_description, payload_name, payload_identifier, payload_organization, payload_version, profile_filename, sign_cert):
         # Init the things to put in the template, and elsewhere
         self.payload_description = payload_description
         self.payload_name = payload_name
@@ -84,6 +84,7 @@ class PrivacyProfiles():
         self.profile_uuid = str(uuid.uuid1()).upper()  # This is used in the root of the profile
         self.payload_version = payload_version
         self.profile_filename = os.path.expandvars(os.path.expanduser(profile_filename))
+        self.sign_cert = sign_cert
 
         if not os.path.splitext(self.profile_filename)[1] == '.mobileconfig':
             self.profile_filename = self.profile_filename.replace(os.path.splitext(self.profile_filename)[1], '.mobileconfig')
@@ -120,7 +121,7 @@ class PrivacyProfiles():
             if process.returncode is 0:
                 # For some reason, part of the output gets dumped to stderr, but the bit we need goes to stdout
                 if result.startswith('designated => '):
-                    return result.replace('designated => ', '').replace('"', '&quot;').strip('\n')
+                    return result.replace('designated => ', '').strip('\n')
         else:
             raise OSError.FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
 
@@ -129,7 +130,7 @@ class PrivacyProfiles():
             try:
                 identifier = readPlist(os.path.join(app_path.rstrip('/'), 'Contents/Info.plist'))['CFBundleIdentifier']
                 identifier_type = 'bundleID'
-            except:
+            except Exception:
                 identifier = app_path.rstrip('/')
                 identifier_type = 'path'
 
@@ -141,6 +142,11 @@ class PrivacyProfiles():
                 'Identifier': identifier,
                 'IdentifierType': identifier_type,
             }
+
+    def signProfile(self, certificate_name, input_file):
+        if self.sign_cert and os.path.exists(input_file) and input_file.endswith('.mobileconfig'):
+            cmd = ['/usr/bin/security', 'cms', '-S', '-N', certificate_name, '-i', input_file, '-o', '{}'.format(input_file.replace('.mobileconfig', '_Signed.mobileconfig'))]
+            subprocess.call(cmd)
 
 
 def main():
@@ -195,10 +201,19 @@ def main():
     )
 
     parser.add_argument(
+        '-o', '--output',
+        type=str,
+        dest='payload_filename',
+        metavar='payload_filename',
+        help='Filename to save the profile as.',
+        required=True,
+    )
+
+    parser.add_argument(
         '--payload-description',
         type=str,
         dest='payload_description',
-        metavar='payload description',
+        metavar='payload_description',
         help='A short and sweet description of the payload.',
         required=True,
     )
@@ -207,7 +222,7 @@ def main():
         '--payload-identifier',
         type=str,
         dest='payload_identifier',
-        metavar='payload identifier',
+        metavar='payload_identifier',
         help='An identifier to use for the profile. Example: org.foo.bar',
         required=True,
     )
@@ -216,7 +231,7 @@ def main():
         '--payload-name',
         type=str,
         dest='payload_name',
-        metavar='payload name',
+        metavar='payload_name',
         help='A short and sweet name for the payload.',
         required=True,
     )
@@ -225,7 +240,7 @@ def main():
         '--payload-org',
         type=str,
         dest='payload_org',
-        metavar='payload org',
+        metavar='payload_org',
         help='Organization to use for the profile.',
         required=True,
     )
@@ -234,18 +249,19 @@ def main():
         '--payload-version',
         type=int,
         dest='payload_ver',
-        metavar='payload version',
+        metavar='payload_version',
         help='Version to use for the profile.',
         required=True,
     )
 
     parser.add_argument(
-        '-o', '--output',
+        '-s', '--sign',
         type=str,
-        dest='payload_filename',
-        metavar='payload filename',
-        help='Filename to save the profile as.',
-        required=True,
+        nargs=1,
+        dest='sign_profile',
+        metavar='certificate_name',
+        help='Signs a profile using the specified Certificate Name. To list code signing certificate names: /usr/bin/security find-identity -p codesigning -v',
+        required=False,
     )
 
     # Parse the args
@@ -261,8 +277,13 @@ def main():
     version = args.payload_ver
     filename = args.payload_filename
 
+    if args.sign_profile and len(args.sign_profile):
+        sign_cert = args.sign_profile[0]
+    else:
+        sign_cert = False
+
     # Init the class
-    tccprofiles = PrivacyProfiles(payload_description=description, payload_name=name, payload_identifier=payload_id, payload_organization=organization, payload_version=version, profile_filename=filename)
+    tccprofiles = PrivacyProfiles(payload_description=description, payload_name=name, payload_identifier=payload_id, payload_organization=organization, payload_version=version, profile_filename=filename, sign_cert=sign_cert)
 
     # Create the empty accessibility dictionary
     tccprofiles.template['PayloadContent'][0]['Services'] = {'Accessibility': []}
@@ -277,6 +298,9 @@ def main():
             tccprofiles.template['PayloadContent'][0]['Services']['Accessibility'].append(accessibility_dict)
 
     plistlib.writePlist(tccprofiles.template, tccprofiles.profile_filename)
+
+    if tccprofiles.sign_cert:
+        tccprofiles.signProfile(certificate_name=tccprofiles.sign_cert, input_file=tccprofiles.profile_filename)
 
 
 if __name__ == '__main__':
