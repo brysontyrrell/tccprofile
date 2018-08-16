@@ -4,7 +4,7 @@ Creates a mobileconfig profile for TCC configuration in a certain version of mac
 ## !Warning!
 Presently this has _not_ been tested to ensure the generated profiles will deploy correctly. This was whipped up fairly quickly. I'm quite happy to accept pull requests to fix issues, typos, all that jazz.
 
-Currently it _only_ generates `Accessibility` payloads, and will generate the same settings for any apps specified.
+Currently it _only_ generates `Accessibility` payloads, and will generate the same allow settings (i.e. Allow/Deny the app control) for any apps specified.
 
 ## Requires
 1. python 2.7.10 (as tested on)
