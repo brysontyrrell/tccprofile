@@ -14,4 +14,4 @@ Currently it _only_ generates `Accessibility` payloads, and will generate the sa
 macOS 10.12.6 (should work on any recent macOS release)
 
 ## Usage:
-`./tccprofile.py -a /Applications/Xcode.app/ /Applications/Wireshark.app --allow --payload-description="Whitelist Apps" --payload-identifier="com.github.carlashley" --payload-name="TCC Whitelist" --payload-org="My Great Company" --payload-version="1" -o TCC_Accessibility_Profile_20180816_v1.mobileconfig`
+`./tccprofile.py -a /Applications/Automator.app --allow --payload-description="Whitelist Apps" --payload-identifier="com.github.carlashley" --payload-name="TCC Whitelist" --payload-org="My Great Company" --payload-version="1" -o TCC_Accessibility_Profile_20180816_v1.mobileconfig`
