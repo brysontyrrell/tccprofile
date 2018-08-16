@@ -94,6 +94,9 @@ class PrivacyProfiles():
                     'PayloadDescription': self.payload_description,
                     'PayloadDisplayName': self.payload_name,
                     'PayloadIdentifier': '{}.{}'.format(self.payload_identifier, self.payload_uuid),  # This needs to be different to the root 'PayloadIdentifier'
+                    'PayloadOrganization': self.payload_organization,
+                    'PayloadType': self.payload_type,
+                    'PayloadUUID': self.payload_uuid,
                     'PayloadVersion': self.payload_version,
                     'Services': []  # This will be an empty list to house the dicts.
                 }
