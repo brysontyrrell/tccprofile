@@ -270,7 +270,7 @@ def main():
     # Iterate over the apps to build payloads for
     for app in apps:
         app_path = os.path.join('/Applications', app)
-        app_name = os.path.splitext(app)[0]
+        app_name = os.path.basename(os.path.splitext(app)[0])
         codesign_result = tccprofiles.getCodeSignRequirements(path=app_path)
         accessibility_dict = tccprofiles.accessibilityPayload(app_path=app_path, allowed=allow, code_requirement=codesign_result, comment='Allow accessibility control for {}'.format(app_name))
         if accessibility_dict not in tccprofiles.template['PayloadContent'][0]['Services']['Accessibility']:
