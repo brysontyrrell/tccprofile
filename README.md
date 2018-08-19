@@ -1,12 +1,9 @@
 # tccprofile
 Creates a mobileconfig profile for TCC configuration in a certain version of macOS.
 
-## !Warning!
-Presently this has _not_ been tested to ensure the generated profiles will deploy correctly. This was whipped up fairly quickly. I'm quite happy to accept pull requests to fix issues, typos, all that jazz.
-
 Currently it _only_ generates `Accessibility` payloads, and will generate the same allow settings (i.e. Allow/Deny the app control) for any apps specified.
 
-### Code Signing Requirements
+## Code Signing Requirements
 The output of `codesign -dr - /Application/Application.app` is likely to vary as the developer of the app releases new versions, etc, or needs to re-sign the app for whatever reason. It will be critical to maintain an accurate profile with these correct `codesign` results, as being not specific enough can potentially lead to bad actors maliciously acting on your system.
 
 For example, both the values below for the `CodeRequirement` of payloads for Adobe Photoshop CC 2018 will work.
