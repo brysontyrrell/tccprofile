@@ -7,6 +7,7 @@ import os
 import plistlib
 import uuid
 import subprocess
+import sys
 
 # Imports specifically for FoundationPlist
 # PyLint cannot properly find names inside Cocoa libraries, so issues bogus
@@ -17,6 +18,8 @@ from Foundation import NSPropertyListSerialization  # NOQA
 from Foundation import NSPropertyListMutableContainers  # NOQA
 from Foundation import NSPropertyListXMLFormat_v1_0  # NOQA
 # pylint: enable=E0611
+
+from pprint import pprint
 
 
 # Special thanks to the munki crew for the plist work.
@@ -122,17 +125,28 @@ class PrivacyProfiles():
                 # For some reason, part of the output gets dumped to stderr, but the bit we need goes to stdout
                 if result.startswith('designated => '):
                     return result.replace('designated => ', '').strip('\n')
+            elif process.returncode is 1 and 'not signed' in error:
+                print 'App at {} is not signed. Exiting.'.format(path)
+                sys.exit(1)
         else:
             raise OSError.FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
 
-    def accessibilityPayload(self, app_path, allowed, code_requirement, comment):
+    def getIdentifierAndType(self, app_path):
+        '''Returns CFBundleIdentifier from the specified app, sets type to bundleID, falls back to path type and identifier if no CFBundleIdentifier found.'''
+        try:
+            identifier = readPlist(os.path.join(app_path.rstrip('/'), 'Contents/Info.plist'))['CFBundleIdentifier']
+            identifier_type = 'bundleID'
+        except Exception:
+            identifier = app_path.rstrip('/')
+            identifier_type = 'path'
+        return {'identifier': identifier, 'identifier_type': identifier_type}
+
+    def buildPayload(self, app_path, allowed, code_requirement, comment):
+        '''Builds an Accessibility payload for the profile.'''
         if type(allowed) is bool and type(code_requirement) is str:
-            try:
-                identifier = readPlist(os.path.join(app_path.rstrip('/'), 'Contents/Info.plist'))['CFBundleIdentifier']
-                identifier_type = 'bundleID'
-            except Exception:
-                identifier = app_path.rstrip('/')
-                identifier_type = 'path'
+            app_identifiers = self.getIdentifierAndType(app_path=app_path)
+            identifier = app_identifiers['identifier']
+            identifier_type = app_identifiers['identifier_type']
 
             # Only return a basic dict, even though the Services needs a dict supplied, and the 'Accessibility' "payload" is a list of dicts.
             return {
@@ -142,6 +156,9 @@ class PrivacyProfiles():
                 'Identifier': identifier,
                 'IdentifierType': identifier_type,
             }
+
+    def systemPolicyAllFilesPayload(self, app_path, allowed, code_requirement, comment):
+        '''Builds a SystemPolicyAllFiles payload for the profile.'''
 
     def signProfile(self, certificate_name, input_file):
         if self.sign_cert and os.path.exists(input_file) and input_file.endswith('.mobileconfig'):
@@ -182,13 +199,33 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=SaneUsageFormat)
 
     parser.add_argument(
-        '-a', '--apps',
+        '--accessibility',
         type=str,
         nargs='*',
-        dest='apps_list',
+        dest='accessibility_apps_list',
         metavar='<app paths>',
-        help='Generate an Accessibility profile for the specified applications.',
-        required=True,
+        help='Generate an Accessibility payload for the specified applications.',
+        required=False,
+    )
+
+    parser.add_argument(
+        '--allfiles',
+        type=str,
+        nargs='*',
+        dest='allfiles_apps_list',
+        metavar='<app paths>',
+        help='Generate an SystemPolicyAllFiles payload for the specified applications. This applies to all protected system files.',
+        required=False,
+    )
+
+    parser.add_argument(
+        '--sysadminfiles',
+        type=str,
+        nargs='*',
+        dest='sysadmin_apps_list',
+        metavar='<app paths>',
+        help='Generate an SystemPolicySysAdminFiles payload for the specified applications.This applies to some files used in system administration.',
+        required=False,
     )
 
     parser.add_argument(
@@ -268,7 +305,21 @@ def main():
     args = parser.parse_args()
 
     # Build up args to pass to the class init
-    apps = args.apps_list
+    if args.accessibility_apps_list:
+        accessibility_apps = args.accessibility_apps_list
+    else:
+        accessibility_apps = False
+
+    if args.allfiles_apps_list:
+        allfiles_apps = args.allfiles_apps_list
+    else:
+        allfiles_apps = False
+
+    if args.sysadmin_apps_list:
+        sysadmin_apps = args.sysadmin_apps_list
+    else:
+        sysadmin_apps = False
+
     allow = args.allow_app
     description = args.payload_description
     payload_id = args.payload_identifier
@@ -285,18 +336,50 @@ def main():
     # Init the class
     tccprofiles = PrivacyProfiles(payload_description=description, payload_name=name, payload_identifier=payload_id, payload_organization=organization, payload_version=version, profile_filename=filename, sign_cert=sign_cert)
 
-    # Create the empty accessibility dictionary
-    tccprofiles.template['PayloadContent'][0]['Services'] = {'Accessibility': []}
+    # Build services dict to insert
+    services_dict = {}
+
+    if accessibility_apps:
+        services_dict['Accessibility'] = []
+
+    if allfiles_apps:
+        services_dict['SystemPolicyAllFiles'] = []
+
+    if sysadmin_apps:
+        services_dict['SystemPolicySysAdminFiles'] = []
+
+    # Insert the service dict into the template
+    tccprofiles.template['PayloadContent'][0]['Services'] = services_dict
 
     # Iterate over the apps to build payloads for
-    for app in apps:
-        app_path = os.path.join('/Applications', app)
-        app_name = os.path.basename(os.path.splitext(app)[0])
-        codesign_result = tccprofiles.getCodeSignRequirements(path=app_path)
-        accessibility_dict = tccprofiles.accessibilityPayload(app_path=app_path, allowed=allow, code_requirement=codesign_result, comment='Allow accessibility control for {}'.format(app_name))
-        if accessibility_dict not in tccprofiles.template['PayloadContent'][0]['Services']['Accessibility']:
-            tccprofiles.template['PayloadContent'][0]['Services']['Accessibility'].append(accessibility_dict)
+    if accessibility_apps:
+        for app in accessibility_apps:
+            app_path = os.path.join('/Applications', app)
+            app_name = os.path.basename(os.path.splitext(app)[0])
+            codesign_result = tccprofiles.getCodeSignRequirements(path=app_path)
+            accessibility_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, code_requirement=codesign_result, comment='Allow Accessibility control for {}'.format(app_name))
+            if accessibility_dict not in tccprofiles.template['PayloadContent'][0]['Services']['Accessibility']:
+                tccprofiles.template['PayloadContent'][0]['Services']['Accessibility'].append(accessibility_dict)
 
+    if allfiles_apps:
+        for app in allfiles_apps:
+            app_path = os.path.join('/Applications', app)
+            app_name = os.path.basename(os.path.splitext(app)[0])
+            codesign_result = tccprofiles.getCodeSignRequirements(path=app_path)
+            allfiles_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, code_requirement=codesign_result, comment='Allow SystemPolicyAllFiles control for {}'.format(app_name))
+            if allfiles_dict not in tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicyAllFiles']:
+                tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicyAllFiles'].append(allfiles_dict)
+
+    if sysadmin_apps:
+        for app in sysadmin_apps:
+            app_path = os.path.join('/Applications', app)
+            app_name = os.path.basename(os.path.splitext(app)[0])
+            codesign_result = tccprofiles.getCodeSignRequirements(path=app_path)
+            sysadminpolicy_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, code_requirement=codesign_result, comment='Allow SystemPolicySysAdminFiles control for {}'.format(app_name))
+            if sysadminpolicy_dict not in tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicySysAdminFiles']:
+                tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicySysAdminFiles'].append(sysadminpolicy_dict)
+
+    # Write the plist out
     plistlib.writePlist(tccprofiles.template, tccprofiles.profile_filename)
 
     if tccprofiles.sign_cert:
