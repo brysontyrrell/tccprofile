@@ -44,4 +44,4 @@ To sign:
 
 To create payloads for all three types:
 ```
-./tccprofile.py --sysadminfiles /Applications/Utilities/Terminal.app /Applications/Chess.app --allfiles /usr/sbin/installer /Applications/Dictionary.app --accessibility /Applications/Adobe\ Photoshop\ CC\ 2018/Adobe\ Photoshop\ CC\ 2018.app --payload-description="TCC Whitelist for Adobe Photoshop" --payload-name="TCC Whitelist Adobe Photoshop" --payload-name="TCC Whitelist" --payload-org="My Great Company"\n --payload-version=1 --payload-identifier="com.carlashley.github" -o Adobe_Photoshop_TCC.mobileconfig --allow --sign="Certificate Name"```
+./tccprofile.py --sysadminfiles /Applications/Utilities/Terminal.app /Applications/Chess.app --allfiles /usr/sbin/installer /Applications/Dictionary.app --accessibility /Applications/Adobe\ Photoshop\ CC\ 2018/Adobe\ Photoshop\ CC\ 2018.app --payload-description="TCC Whitelist for various applications" --payload-name="TCC Whitelists" --payload-name="TCC Whitelist" --payload-org="My Great Company"\n --payload-version=1 --payload-identifier="com.carlashley.github" -o TCC_Whitelists.mobileconfig --allow --sign="Certificate Name"```
