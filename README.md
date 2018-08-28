@@ -1,7 +1,7 @@
 # tccprofile
 Creates a mobileconfig profile for TCC configuration in a certain version of macOS.
 
-Currently it _only_ generates payloads for _application_ binaryes, and will generate the same allow settings (i.e. Allow/Deny the app control) for any apps specified.
+Currently it _only_ generates payloads for _application_ binaries, and will generate the same allow settings (i.e. Allow/Deny the app control) for any apps specified.
 
 ## Code Signing Requirements
 The output of `codesign -dr - /Application/Application.app` is likely to vary as the developer of the app releases new versions, etc, or needs to re-sign the app for whatever reason. It will be critical to maintain an accurate profile with these correct `codesign` results, as being not specific enough can potentially lead to bad actors maliciously acting on your system.
