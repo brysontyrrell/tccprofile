@@ -19,7 +19,7 @@ from Foundation import NSPropertyListMutableContainers  # NOQA
 from Foundation import NSPropertyListXMLFormat_v1_0  # NOQA
 # pylint: enable=E0611
 
-from pprint import pprint
+# from pprint import pprint  # NOQA
 
 
 # Special thanks to the munki crew for the plist work.
@@ -141,21 +141,38 @@ class PrivacyProfiles():
             identifier_type = 'path'
         return {'identifier': identifier, 'identifier_type': identifier_type}
 
-    def buildPayload(self, app_path, allowed, code_requirement, comment):
+    def buildPayload(self, app_path, allowed, apple_event, code_requirement, comment):
         '''Builds an Accessibility payload for the profile.'''
-        if type(allowed) is bool and type(code_requirement) is str:
+        if type(allowed) is bool and type(code_requirement) is str and type(apple_event) is bool:
+            # Check if building an Apple Event. The sending app and receiving app must be seperated by comma
+            # Example: ['/Applications/Foo.app,/Applications/Bar.app']
+            # The receiving app is the second/last app in the "list" (splits on comma)
+            if apple_event and ',' in app_path and len(app_path.split(',')) == 2:
+                receiving_app = app_path.split(',')[1]
+                app_path = app_path.split(',')[0]
+                receiving_app_identifiers = self.getIdentifierAndType(app_path=receiving_app)
+                receiving_app_identifier = receiving_app_identifiers['identifier']
+                receiving_app_identifier_type = receiving_app_identifiers['identifier_type']
+
             app_identifiers = self.getIdentifierAndType(app_path=app_path)
             identifier = app_identifiers['identifier']
             identifier_type = app_identifiers['identifier_type']
 
             # Only return a basic dict, even though the Services needs a dict supplied, and the 'Accessibility' "payload" is a list of dicts.
-            return {
+            result = {
                 'Allowed': allowed,
                 'CodeRequirement': code_requirement,
                 'Comment': comment,
                 'Identifier': identifier,
                 'IdentifierType': identifier_type,
             }
+
+            if apple_event:
+                result['AEReceiverIdentifier'] = receiving_app_identifier
+                result['AEReceiverIdentifierType'] = receiving_app_identifier_type
+                result['AEReceiverCodeRequirement'] = self.getCodeSignRequirements(path=receiving_app)
+
+            return result
 
     def systemPolicyAllFilesPayload(self, app_path, allowed, code_requirement, comment):
         '''Builds a SystemPolicyAllFiles payload for the profile.'''
@@ -215,6 +232,16 @@ def main():
         dest='allfiles_apps_list',
         metavar='<app paths>',
         help='Generate an SystemPolicyAllFiles payload for the specified applications. This applies to all protected system files.',
+        required=False,
+    )
+
+    parser.add_argument(
+        '--appleevents',
+        type=str,
+        nargs='*',
+        dest='events_apps_list',
+        metavar='<app paths>',
+        help='Generate an AppleEvents payload for the specified applications. This allows applications to send restricted AppleEvents to another process',
         required=False,
     )
 
@@ -315,6 +342,11 @@ def main():
     else:
         allfiles_apps = False
 
+    if args.events_apps_list:
+        events_apps = args.events_apps_list
+    else:
+        events_apps = False
+
     if args.sysadmin_apps_list:
         sysadmin_apps = args.sysadmin_apps_list
     else:
@@ -345,6 +377,9 @@ def main():
     if allfiles_apps:
         services_dict['SystemPolicyAllFiles'] = []
 
+    if events_apps:
+        services_dict['AppleEvents'] = []
+
     if sysadmin_apps:
         services_dict['SystemPolicySysAdminFiles'] = []
 
@@ -357,7 +392,7 @@ def main():
             app_path = os.path.join('/Applications', app)
             app_name = os.path.basename(os.path.splitext(app)[0])
             codesign_result = tccprofiles.getCodeSignRequirements(path=app_path)
-            accessibility_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, code_requirement=codesign_result, comment='Allow Accessibility control for {}'.format(app_name))
+            accessibility_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow Accessibility control for {}'.format(app_name))
             if accessibility_dict not in tccprofiles.template['PayloadContent'][0]['Services']['Accessibility']:
                 tccprofiles.template['PayloadContent'][0]['Services']['Accessibility'].append(accessibility_dict)
 
@@ -366,16 +401,25 @@ def main():
             app_path = os.path.join('/Applications', app)
             app_name = os.path.basename(os.path.splitext(app)[0])
             codesign_result = tccprofiles.getCodeSignRequirements(path=app_path)
-            allfiles_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, code_requirement=codesign_result, comment='Allow SystemPolicyAllFiles control for {}'.format(app_name))
+            allfiles_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow SystemPolicyAllFiles control for {}'.format(app_name))
             if allfiles_dict not in tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicyAllFiles']:
                 tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicyAllFiles'].append(allfiles_dict)
+
+    if events_apps:
+        for app in events_apps:
+            app_path = os.path.join('/Applications', app)
+            app_name = os.path.basename(os.path.splitext(app_path.split(',')[0])[0])
+            codesign_result = tccprofiles.getCodeSignRequirements(path=app_path.split(',')[0])
+            events_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, apple_event=True, code_requirement=codesign_result, comment='Allow AppleEvents control for {}'.format(app_name))
+            if events_dict not in tccprofiles.template['PayloadContent'][0]['Services']['AppleEvents']:
+                tccprofiles.template['PayloadContent'][0]['Services']['AppleEvents'].append(events_dict)
 
     if sysadmin_apps:
         for app in sysadmin_apps:
             app_path = os.path.join('/Applications', app)
             app_name = os.path.basename(os.path.splitext(app)[0])
             codesign_result = tccprofiles.getCodeSignRequirements(path=app_path)
-            sysadminpolicy_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, code_requirement=codesign_result, comment='Allow SystemPolicySysAdminFiles control for {}'.format(app_name))
+            sysadminpolicy_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow SystemPolicySysAdminFiles control for {}'.format(app_name))
             if sysadminpolicy_dict not in tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicySysAdminFiles']:
                 tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicySysAdminFiles'].append(sysadminpolicy_dict)
 
