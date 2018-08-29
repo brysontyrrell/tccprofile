@@ -24,7 +24,7 @@ Out of these two examples, `Example B` can be considered the least secure/most g
 ## Requires
 1. python 2.7.10 (as tested on)
 1. `/usr/bin/codesign`
-1. The application the profile is generated for to be installed on the machine this is run on.
+1. The application the profile is generated for must be installed on the machine `tccprofile.py` is run on.
 
 ## Tested on
 macOS 10.12.6 (should work on any recent macOS release)
