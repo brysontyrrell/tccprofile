@@ -153,6 +153,9 @@ class PrivacyProfiles():
                 receiving_app_identifiers = self.getIdentifierAndType(app_path=receiving_app)
                 receiving_app_identifier = receiving_app_identifiers['identifier']
                 receiving_app_identifier_type = receiving_app_identifiers['identifier_type']
+            elif apple_event and ',' not in app_path and len(app_path.split(',')) == 2:
+                print 'AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app'
+                sys.exit(1)
 
             app_identifiers = self.getIdentifierAndType(app_path=app_path)
             identifier = app_identifiers['identifier']
@@ -407,12 +410,16 @@ def main():
 
     if events_apps:
         for app in events_apps:
-            app_path = os.path.join('/Applications', app)
-            app_name = os.path.basename(os.path.splitext(app_path.split(',')[0])[0])
-            codesign_result = tccprofiles.getCodeSignRequirements(path=app_path.split(',')[0])
-            events_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, apple_event=True, code_requirement=codesign_result, comment='Allow AppleEvents control for {}'.format(app_name))
-            if events_dict not in tccprofiles.template['PayloadContent'][0]['Services']['AppleEvents']:
-                tccprofiles.template['PayloadContent'][0]['Services']['AppleEvents'].append(events_dict)
+            if not len(app.split(',')) == 2:
+                print 'AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app'
+                sys.exit(1)
+            else:
+                app_path = os.path.join('/Applications', app)
+                app_name = os.path.basename(os.path.splitext(app_path.split(',')[0])[0])
+                codesign_result = tccprofiles.getCodeSignRequirements(path=app_path.split(',')[0])
+                events_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, apple_event=True, code_requirement=codesign_result, comment='Allow AppleEvents control for {}'.format(app_name))
+                if events_dict not in tccprofiles.template['PayloadContent'][0]['Services']['AppleEvents']:
+                    tccprofiles.template['PayloadContent'][0]['Services']['AppleEvents'].append(events_dict)
 
     if sysadmin_apps:
         for app in sysadmin_apps:
