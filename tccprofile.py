@@ -115,6 +115,14 @@ class PrivacyProfiles():
             'PayloadVersion': self.payload_version,
         }
 
+        # Note, there's different values for the python codesigns depending on which python is called.
+        # /usr/bin/python is com.apple.python
+        # /System/Library/Frameworks/Python.framework/Resources/Python.app is org.python.python
+        # These different codesign values cause issues with LaunchAgents/LaunchDaemons that don't explicitly call
+        # the interpreter in the ProgramArguments array.
+        # For the time being, strongly recommend any LaunchDaemons/LaunchAgents that launch python scripts to
+        # add in <string>/usr/bin/python</string> to the ProgramArguments array _before_ the <string>/path/to/pythonscript.py</string> line.
+
     def getFileMimeType(self, path):
         '''Returns the mimetype of a given file'''
         if os.path.exists(path.rstrip('/')):
@@ -127,25 +135,34 @@ class PrivacyProfiles():
                 result = result.replace(' ', '').replace('\n', '').split(':')[1].split('/')[1]
                 return result
 
-    def getCodeSignRequirements(self, path):
-        if os.path.exists(path.rstrip('/')):
-            mimetype = self.getFileMimeType(path=path)
-            if mimetype == 'x-python':
-                return 'identifier "org.python.python" and anchor apple'
-            elif mimetype == 'x-shellscript':
-                return 'identifier "com.apple.sh" and anchor apple'
-            else:
-                cmd = ['/usr/bin/codesign', '-dr', '-', path]
-                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                result, error = process.communicate()
+    def readShebang(self, app_path):
+        '''Returns the contents of the shebang in a script file, as long as env is not in the shebang'''
+        with open(app_path, 'r') as textfile:
+            line = textfile.readline().rstrip('\n')
+            if line.startswith('#!') and 'env ' not in line:
+                return line.replace('#!', '')
+            elif line.startswith('#!') and 'env ' in line:
+                raise Exception('Cannot check codesign for shebangs that refer to \'env\'.')
 
-                if process.returncode is 0:
-                    # For some reason, part of the output gets dumped to stderr, but the bit we need goes to stdout
-                    if result.startswith('designated => '):
-                        return result.replace('designated => ', '').strip('\n')
-                elif process.returncode is 1 and 'not signed' in error:
-                    print 'App at {} is not signed. Exiting.'.format(path)
-                    sys.exit(1)
+    def getCodeSignRequirements(self, path):
+        '''Returns the values for the CodeRequirement key.'''
+        if os.path.exists(path.rstrip('/')):
+            # Handle situations where path is a script, and shebang is ['/bin/sh', '/bin/bash', '/usr/bin/python']
+            mimetype = self.getFileMimeType(path=path)
+            if mimetype in ['x-python', 'x-shellscript']:
+                path = self.readShebang(app_path=path)
+
+            cmd = ['/usr/bin/codesign', '-dr', '-', path]
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            result, error = process.communicate()
+
+            if process.returncode is 0:
+                # For some reason, part of the output gets dumped to stderr, but the bit we need goes to stdout
+                if result.startswith('designated => '):
+                    return result.replace('designated => ', '').strip('\n')
+            elif process.returncode is 1 and 'not signed' in error:
+                print 'App at {} is not signed. Exiting.'.format(path)
+                sys.exit(1)
         else:
             raise OSError.FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
 
