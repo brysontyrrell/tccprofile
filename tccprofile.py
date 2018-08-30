@@ -115,30 +115,54 @@ class PrivacyProfiles():
             'PayloadVersion': self.payload_version,
         }
 
-    def getCodeSignRequirements(self, path):
+    def getFileMimeType(self, path):
+        '''Returns the mimetype of a given file'''
         if os.path.exists(path.rstrip('/')):
-            cmd = ['/usr/bin/codesign', '-dr', '-', path]
+            cmd = ['/usr/bin/file', '--mime-type', path]
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             result, error = process.communicate()
 
             if process.returncode is 0:
-                # For some reason, part of the output gets dumped to stderr, but the bit we need goes to stdout
-                if result.startswith('designated => '):
-                    return result.replace('designated => ', '').strip('\n')
-            elif process.returncode is 1 and 'not signed' in error:
-                print 'App at {} is not signed. Exiting.'.format(path)
-                sys.exit(1)
+                # Only need the mime type, so return the last bit
+                result = result.replace(' ', '').replace('\n', '').split(':')[1].split('/')[1]
+                return result
+
+    def getCodeSignRequirements(self, path):
+        if os.path.exists(path.rstrip('/')):
+            mimetype = self.getFileMimeType(path=path)
+            if mimetype == 'x-python':
+                return 'identifier "org.python.python" and anchor apple'
+            elif mimetype == 'x-shellscript':
+                return 'identifier "com.apple.sh" and anchor apple'
+            else:
+                cmd = ['/usr/bin/codesign', '-dr', '-', path]
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                result, error = process.communicate()
+
+                if process.returncode is 0:
+                    # For some reason, part of the output gets dumped to stderr, but the bit we need goes to stdout
+                    if result.startswith('designated => '):
+                        return result.replace('designated => ', '').strip('\n')
+                elif process.returncode is 1 and 'not signed' in error:
+                    print 'App at {} is not signed. Exiting.'.format(path)
+                    sys.exit(1)
         else:
             raise OSError.FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
 
     def getIdentifierAndType(self, app_path):
-        '''Returns CFBundleIdentifier from the specified app, sets type to bundleID, falls back to path type and identifier if no CFBundleIdentifier found.'''
-        try:
-            identifier = readPlist(os.path.join(app_path.rstrip('/'), 'Contents/Info.plist'))['CFBundleIdentifier']
-            identifier_type = 'bundleID'
-        except Exception:
-            identifier = app_path.rstrip('/')
+        '''Checks file type, and returns appropriate values for `Identifier` and `IdentifierType` keys in the final profile payload.'''
+        mimetype = self.getFileMimeType(path=app_path)
+        if mimetype in ['x-shellscript', 'x-python']:
+            identifier = app_path
             identifier_type = 'path'
+        else:
+            try:
+                identifier = readPlist(os.path.join(app_path.rstrip('/'), 'Contents/Info.plist'))['CFBundleIdentifier']
+                identifier_type = 'bundleID'
+            except Exception:
+                identifier = app_path.rstrip('/')
+                identifier_type = 'path'
+
         return {'identifier': identifier, 'identifier_type': identifier_type}
 
     def buildPayload(self, app_path, allowed, apple_event, code_requirement, comment):
@@ -392,19 +416,17 @@ def main():
     # Iterate over the apps to build payloads for
     if accessibility_apps:
         for app in accessibility_apps:
-            app_path = os.path.join('/Applications', app)
             app_name = os.path.basename(os.path.splitext(app)[0])
-            codesign_result = tccprofiles.getCodeSignRequirements(path=app_path)
-            accessibility_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow Accessibility control for {}'.format(app_name))
+            codesign_result = tccprofiles.getCodeSignRequirements(path=app)
+            accessibility_dict = tccprofiles.buildPayload(app_path=app, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow Accessibility control for {}'.format(app_name))
             if accessibility_dict not in tccprofiles.template['PayloadContent'][0]['Services']['Accessibility']:
                 tccprofiles.template['PayloadContent'][0]['Services']['Accessibility'].append(accessibility_dict)
 
     if allfiles_apps:
         for app in allfiles_apps:
-            app_path = os.path.join('/Applications', app)
             app_name = os.path.basename(os.path.splitext(app)[0])
-            codesign_result = tccprofiles.getCodeSignRequirements(path=app_path)
-            allfiles_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow SystemPolicyAllFiles control for {}'.format(app_name))
+            codesign_result = tccprofiles.getCodeSignRequirements(path=app)
+            allfiles_dict = tccprofiles.buildPayload(app_path=app, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow SystemPolicyAllFiles control for {}'.format(app_name))
             if allfiles_dict not in tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicyAllFiles']:
                 tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicyAllFiles'].append(allfiles_dict)
 
@@ -414,19 +436,20 @@ def main():
                 print 'AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app'
                 sys.exit(1)
             else:
-                app_path = os.path.join('/Applications', app)
-                app_name = os.path.basename(os.path.splitext(app_path.split(',')[0])[0])
-                codesign_result = tccprofiles.getCodeSignRequirements(path=app_path.split(',')[0])
-                events_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, apple_event=True, code_requirement=codesign_result, comment='Allow AppleEvents control for {}'.format(app_name))
+                sending_app = app.split(',')[0]
+                receiving_app = app.split(',')[1]
+                sending_app_name = os.path.basename(os.path.splitext(sending_app)[0])
+                receiving_app_name = os.path.basename(os.path.splitext(receiving_app)[0])
+                codesign_result = tccprofiles.getCodeSignRequirements(path=app.split(',')[0])
+                events_dict = tccprofiles.buildPayload(app_path=app, allowed=allow, apple_event=True, code_requirement=codesign_result, comment='Allow {} to send AppleEvents control to {}'.format(sending_app_name, receiving_app_name))
                 if events_dict not in tccprofiles.template['PayloadContent'][0]['Services']['AppleEvents']:
                     tccprofiles.template['PayloadContent'][0]['Services']['AppleEvents'].append(events_dict)
 
     if sysadmin_apps:
         for app in sysadmin_apps:
-            app_path = os.path.join('/Applications', app)
             app_name = os.path.basename(os.path.splitext(app)[0])
-            codesign_result = tccprofiles.getCodeSignRequirements(path=app_path)
-            sysadminpolicy_dict = tccprofiles.buildPayload(app_path=app_path, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow SystemPolicySysAdminFiles control for {}'.format(app_name))
+            codesign_result = tccprofiles.getCodeSignRequirements(path=app)
+            sysadminpolicy_dict = tccprofiles.buildPayload(app_path=app, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow SystemPolicySysAdminFiles control for {}'.format(app_name))
             if sysadminpolicy_dict not in tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicySysAdminFiles']:
                 tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicySysAdminFiles'].append(sysadminpolicy_dict)
 
