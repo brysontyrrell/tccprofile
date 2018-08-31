@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadDescription</key>
+			<string>TCC Whitelist Terminal.app</string>
+			<key>PayloadDisplayName</key>
+			<string>TCC Whitelist Terminal.app</string>
+			<key>PayloadIdentifier</key>
+			<string>com.github.carlashley.com.C895C92E-ACB0-11E8-B281-F200D0694A01</string>
+			<key>PayloadOrganization</key>
+			<string>My Great Company</string>
+			<key>PayloadType</key>
+			<string>com.apple.TCC.configuration-profile-policy</string>
+			<key>PayloadUUID</key>
+			<string>C895C92E-ACB0-11E8-B281-F200D0694A01</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>Services</key>
+			<dict>
+				<key>Accessibility</key>
+				<array>
+					<dict>
+						<key>Allowed</key>
+						<true/>
+						<key>CodeRequirement</key>
+						<string>identifier "com.apple.Terminal" and anchor apple</string>
+						<key>Comment</key>
+						<string>Allow Accessibility control for Terminal</string>
+						<key>Identifier</key>
+						<string>com.apple.Terminal</string>
+						<key>IdentifierType</key>
+						<string>bundleID</string>
+					</dict>
+				</array>
+				<key>AppleEvents</key>
+				<array>
+					<dict>
+						<key>AEReceiverCodeRequirement</key>
+						<string>identifier "com.apple.systemevents" and anchor apple</string>
+						<key>AEReceiverIdentifier</key>
+						<string>com.apple.systemevents</string>
+						<key>AEReceiverIdentifierType</key>
+						<string>bundleID</string>
+						<key>Allowed</key>
+						<true/>
+						<key>CodeRequirement</key>
+						<string>identifier "com.apple.Terminal" and anchor apple</string>
+						<key>Comment</key>
+						<string>Allow Terminal to send AppleEvents control to System Events</string>
+						<key>Identifier</key>
+						<string>com.apple.Terminal</string>
+						<key>IdentifierType</key>
+						<string>bundleID</string>
+					</dict>
+					<dict>
+						<key>AEReceiverCodeRequirement</key>
+						<string>identifier "com.apple.systemuiserver" and anchor apple</string>
+						<key>AEReceiverIdentifier</key>
+						<string>com.apple.systemuiserver</string>
+						<key>AEReceiverIdentifierType</key>
+						<string>bundleID</string>
+						<key>Allowed</key>
+						<true/>
+						<key>CodeRequirement</key>
+						<string>identifier "com.apple.Terminal" and anchor apple</string>
+						<key>Comment</key>
+						<string>Allow Terminal to send AppleEvents control to SystemUIServer</string>
+						<key>Identifier</key>
+						<string>com.apple.Terminal</string>
+						<key>IdentifierType</key>
+						<string>bundleID</string>
+					</dict>
+				</array>
+				<key>SystemPolicyAllFiles</key>
+				<array>
+					<dict>
+						<key>Allowed</key>
+						<true/>
+						<key>CodeRequirement</key>
+						<string>identifier "com.apple.Terminal" and anchor apple</string>
+						<key>Comment</key>
+						<string>Allow SystemPolicyAllFiles control for Terminal</string>
+						<key>Identifier</key>
+						<string>com.apple.Terminal</string>
+						<key>IdentifierType</key>
+						<string>bundleID</string>
+					</dict>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>PayloadDescription</key>
+	<string>TCC Whitelist Terminal.app</string>
+	<key>PayloadDisplayName</key>
+	<string>TCC Whitelist Terminal.app</string>
+	<key>PayloadIdentifier</key>
+	<string>com.github.carlashley.com</string>
+	<key>PayloadOrganization</key>
+	<string>My Great Company</string>
+	<key>PayloadScope</key>
+	<string>system</string>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>C8972073-ACB0-11E8-B3EE-F200D0694A01</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>
