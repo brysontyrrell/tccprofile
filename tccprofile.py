@@ -76,7 +76,8 @@ def readPlistFromString(data):
 
 
 class PrivacyProfiles():
-    def __init__(self, payload_description, payload_name, payload_identifier, payload_organization, payload_version, profile_filename, sign_cert):
+    def __init__(self, payload_description, payload_name, payload_identifier, payload_organization, payload_version, sign_cert):
+        '''Creates a Privacy Preferences Policy Control Profile for macOS Mojave.'''
         # Init the things to put in the template, and elsewhere
         self.payload_description = payload_description
         self.payload_name = payload_name
@@ -86,12 +87,9 @@ class PrivacyProfiles():
         self.payload_uuid = str(uuid.uuid1()).upper()  # This is used in the 'PayloadContent' part of the profile
         self.profile_uuid = str(uuid.uuid1()).upper()  # This is used in the root of the profile
         self.payload_version = payload_version
-        self.profile_filename = os.path.expandvars(os.path.expanduser(profile_filename))
         self.sign_cert = sign_cert
 
-        if not os.path.splitext(self.profile_filename)[1] == '.mobileconfig':
-            self.profile_filename = self.profile_filename.replace(os.path.splitext(self.profile_filename)[1], '.mobileconfig')
-
+        # Basic requirements for this profile to work
         self.template = {
             'PayloadContent': [
                 {
@@ -124,7 +122,7 @@ class PrivacyProfiles():
         # add in <string>/usr/bin/python</string> to the ProgramArguments array _before_ the <string>/path/to/pythonscript.py</string> line.
 
     def getFileMimeType(self, path):
-        '''Returns the mimetype of a given file'''
+        '''Returns the mimetype of a given file.'''
         if os.path.exists(path.rstrip('/')):
             cmd = ['/usr/bin/file', '--mime-type', path]
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -158,6 +156,10 @@ class PrivacyProfiles():
 
             if process.returncode is 0:
                 # For some reason, part of the output gets dumped to stderr, but the bit we need goes to stdout
+                # Also, there can be multiple lines in the result, so handle this properly
+                result = [x.rstrip('\n') for x in result.splitlines() if x.startswith('designated => ')][0]
+
+                # Return a clean result without the 'designated => '
                 if result.startswith('designated => '):
                     return result.replace('designated => ', '').strip('\n')
             elif process.returncode is 1 and 'not signed' in error:
@@ -211,6 +213,7 @@ class PrivacyProfiles():
                 'IdentifierType': identifier_type,
             }
 
+            # If the payload is an AppleEvent type, there are additional requirements relating to the receiving app.
             if apple_event:
                 result['AEReceiverIdentifier'] = receiving_app_identifier
                 result['AEReceiverIdentifierType'] = receiving_app_identifier_type
@@ -218,10 +221,8 @@ class PrivacyProfiles():
 
             return result
 
-    def systemPolicyAllFilesPayload(self, app_path, allowed, code_requirement, comment):
-        '''Builds a SystemPolicyAllFiles payload for the profile.'''
-
     def signProfile(self, certificate_name, input_file):
+        '''Signs the profile.'''
         if self.sign_cert and os.path.exists(input_file) and input_file.endswith('.mobileconfig'):
             cmd = ['/usr/bin/security', 'cms', '-S', '-N', certificate_name, '-i', input_file, '-o', '{}'.format(input_file.replace('.mobileconfig', '_Signed.mobileconfig'))]
             subprocess.call(cmd)
@@ -260,7 +261,7 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=SaneUsageFormat)
 
     parser.add_argument(
-        '--accessibility',
+        '--acc', '--accessibility',
         type=str,
         nargs='*',
         dest='accessibility_apps_list',
@@ -270,7 +271,7 @@ def main():
     )
 
     parser.add_argument(
-        '--allfiles',
+        '--af', '--allfiles',
         type=str,
         nargs='*',
         dest='allfiles_apps_list',
@@ -280,7 +281,7 @@ def main():
     )
 
     parser.add_argument(
-        '--appleevents',
+        '--ae', '--appleevents',
         type=str,
         nargs='*',
         dest='events_apps_list',
@@ -290,7 +291,7 @@ def main():
     )
 
     parser.add_argument(
-        '--sysadminfiles',
+        '--sf', '--sysadminfiles',
         type=str,
         nargs='*',
         dest='sysadmin_apps_list',
@@ -314,11 +315,11 @@ def main():
         dest='payload_filename',
         metavar='payload_filename',
         help='Filename to save the profile as.',
-        required=True,
+        required=False,
     )
 
     parser.add_argument(
-        '--payload-description',
+        '--pd', '--payload-description',
         type=str,
         dest='payload_description',
         metavar='payload_description',
@@ -327,7 +328,7 @@ def main():
     )
 
     parser.add_argument(
-        '--payload-identifier',
+        '--pi', '--payload-identifier',
         type=str,
         dest='payload_identifier',
         metavar='payload_identifier',
@@ -336,7 +337,7 @@ def main():
     )
 
     parser.add_argument(
-        '--payload-name',
+        '--pn', '--payload-name',
         type=str,
         dest='payload_name',
         metavar='payload_name',
@@ -345,7 +346,7 @@ def main():
     )
 
     parser.add_argument(
-        '--payload-org',
+        '--po', '--payload-org',
         type=str,
         dest='payload_org',
         metavar='payload_org',
@@ -354,7 +355,7 @@ def main():
     )
 
     parser.add_argument(
-        '--payload-version',
+        '--pv', '--payload-version',
         type=int,
         dest='payload_ver',
         metavar='payload_version',
@@ -396,13 +397,26 @@ def main():
     else:
         sysadmin_apps = False
 
+    # Handle if no payload arguments are supplied, can't create an empty profile.
+    if not any([accessibility_apps, allfiles_apps, events_apps, sysadmin_apps]):
+        print 'You must provide at least one payload type to create a profile.'
+        parser.print_help()
+        sys.exit(1)
+
     allow = args.allow_app
     description = args.payload_description
     payload_id = args.payload_identifier
     name = args.payload_name
     organization = args.payload_org
     version = args.payload_ver
-    filename = args.payload_filename
+
+    if args.payload_filename:
+        filename = args.payload_filename
+        filename = os.path.expandvars(os.path.expanduser(filename))
+        if not os.path.splitext(filename)[1] == '.mobileconfig':
+            filename = filename.replace(os.path.splitext(filename)[1], '.mobileconfig')
+    else:
+        filename = False
 
     if args.sign_profile and len(args.sign_profile):
         sign_cert = args.sign_profile[0]
@@ -410,7 +424,7 @@ def main():
         sign_cert = False
 
     # Init the class
-    tccprofiles = PrivacyProfiles(payload_description=description, payload_name=name, payload_identifier=payload_id, payload_organization=organization, payload_version=version, profile_filename=filename, sign_cert=sign_cert)
+    tccprofiles = PrivacyProfiles(payload_description=description, payload_name=name, payload_identifier=payload_id, payload_organization=organization, payload_version=version, sign_cert=sign_cert)
 
     # Build services dict to insert
     services_dict = {}
@@ -470,11 +484,16 @@ def main():
             if sysadminpolicy_dict not in tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicySysAdminFiles']:
                 tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicySysAdminFiles'].append(sysadminpolicy_dict)
 
-    # Write the plist out
-    plistlib.writePlist(tccprofiles.template, tccprofiles.profile_filename)
+    if filename:
+        # Write the plist out to file
+        plistlib.writePlist(tccprofiles.template, filename)
 
-    if tccprofiles.sign_cert:
-        tccprofiles.signProfile(certificate_name=tccprofiles.sign_cert, input_file=tccprofiles.profile_filename)
+        # Sign it if required
+        if tccprofiles.sign_cert:
+            tccprofiles.signProfile(certificate_name=tccprofiles.sign_cert, input_file=filename)
+    else:
+        # Print as formatted plist out to stdout
+        print plistlib.writePlistToString(tccprofiles.template).rstrip('\n')
 
 
 if __name__ == '__main__':
