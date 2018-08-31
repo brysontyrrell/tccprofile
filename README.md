@@ -77,6 +77,7 @@ def readPlistFromString(data):
 
 class PrivacyProfiles():
     def __init__(self, payload_description, payload_name, payload_identifier, payload_organization, payload_version, sign_cert):
+        '''Creates a Privacy Preferences Policy Control Profile for macOS Mojave.'''
         # Init the things to put in the template, and elsewhere
         self.payload_description = payload_description
         self.payload_name = payload_name
@@ -88,6 +89,7 @@ class PrivacyProfiles():
         self.payload_version = payload_version
         self.sign_cert = sign_cert
 
+        # Basic requirements for this profile to work
         self.template = {
             'PayloadContent': [
                 {
@@ -120,7 +122,7 @@ class PrivacyProfiles():
         # add in <string>/usr/bin/python</string> to the ProgramArguments array _before_ the <string>/path/to/pythonscript.py</string> line.
 
     def getFileMimeType(self, path):
-        '''Returns the mimetype of a given file'''
+        '''Returns the mimetype of a given file.'''
         if os.path.exists(path.rstrip('/')):
             cmd = ['/usr/bin/file', '--mime-type', path]
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -211,6 +213,7 @@ class PrivacyProfiles():
                 'IdentifierType': identifier_type,
             }
 
+            # If the payload is an AppleEvent type, there are additional requirements relating to the receiving app.
             if apple_event:
                 result['AEReceiverIdentifier'] = receiving_app_identifier
                 result['AEReceiverIdentifierType'] = receiving_app_identifier_type
@@ -218,10 +221,8 @@ class PrivacyProfiles():
 
             return result
 
-    def systemPolicyAllFilesPayload(self, app_path, allowed, code_requirement, comment):
-        '''Builds a SystemPolicyAllFiles payload for the profile.'''
-
     def signProfile(self, certificate_name, input_file):
+        '''Signs the profile.'''
         if self.sign_cert and os.path.exists(input_file) and input_file.endswith('.mobileconfig'):
             cmd = ['/usr/bin/security', 'cms', '-S', '-N', certificate_name, '-i', input_file, '-o', '{}'.format(input_file.replace('.mobileconfig', '_Signed.mobileconfig'))]
             subprocess.call(cmd)
@@ -478,12 +479,14 @@ def main():
                 tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicySysAdminFiles'].append(sysadminpolicy_dict)
 
     if filename:
-        # Write the plist out
+        # Write the plist out to file
         plistlib.writePlist(tccprofiles.template, filename)
 
+        # Sign it if required
         if tccprofiles.sign_cert:
             tccprofiles.signProfile(certificate_name=tccprofiles.sign_cert, input_file=filename)
     else:
+        # Print as formatted plist out to stdout
         print plistlib.writePlistToString(tccprofiles.template).rstrip('\n')
 
 
