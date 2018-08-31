@@ -261,7 +261,7 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=SaneUsageFormat)
 
     parser.add_argument(
-        '--accessibility',
+        '--acc', '--accessibility',
         type=str,
         nargs='*',
         dest='accessibility_apps_list',
@@ -271,7 +271,7 @@ def main():
     )
 
     parser.add_argument(
-        '--allfiles',
+        '--af', '--allfiles',
         type=str,
         nargs='*',
         dest='allfiles_apps_list',
@@ -281,7 +281,7 @@ def main():
     )
 
     parser.add_argument(
-        '--appleevents',
+        '--ae', '--appleevents',
         type=str,
         nargs='*',
         dest='events_apps_list',
@@ -291,7 +291,7 @@ def main():
     )
 
     parser.add_argument(
-        '--sysadminfiles',
+        '--sf', '--sysadminfiles',
         type=str,
         nargs='*',
         dest='sysadmin_apps_list',
