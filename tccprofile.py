@@ -157,7 +157,12 @@ class PrivacyProfiles():
             if process.returncode is 0:
                 # For some reason, part of the output gets dumped to stderr, but the bit we need goes to stdout
                 # Also, there can be multiple lines in the result, so handle this properly
-                result = [x.rstrip('\n') for x in result.splitlines() if x.startswith('designated => ')][0]
+                # There are circumstances where the codesign 'designated => ' is not the start of the line, so handle these.
+                result = result.rstrip('\n').splitlines()
+                result = [line for line in result if 'designated => ' in line][0]
+                result = result.partition('designated => ')
+                result = result[result.index('designated => ') + 1:][0]
+                # result = [x.rstrip('\n') for x in result.splitlines() if x.startswith('designated => ')][0]
 
                 # Return a clean result without the 'designated => '
                 if result.startswith('designated => '):
