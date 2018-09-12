@@ -163,10 +163,8 @@ class PrivacyProfiles():
                 result = result.partition('designated => ')
                 result = result[result.index('designated => ') + 1:][0]
                 # result = [x.rstrip('\n') for x in result.splitlines() if x.startswith('designated => ')][0]
+                return result
 
-                # Return a clean result without the 'designated => '
-                if result.startswith('designated => '):
-                    return result.replace('designated => ', '').strip('\n')
             elif process.returncode is 1 and 'not signed' in error:
                 print 'App at {} is not signed. Exiting.'.format(path)
                 sys.exit(1)
