@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import argparse
@@ -9,70 +9,79 @@ import uuid
 import subprocess
 import sys
 
-# Imports specifically for FoundationPlist
-# PyLint cannot properly find names inside Cocoa libraries, so issues bogus
-# No name 'Foo' in module 'Bar' warnings. Disable them.
-# pylint: disable=E0611
-from Foundation import NSData  # NOQA
-from Foundation import NSPropertyListSerialization  # NOQA
-from Foundation import NSPropertyListMutableContainers  # NOQA
-from Foundation import NSPropertyListXMLFormat_v1_0  # NOQA
-# pylint: enable=E0611
+# Do a python version check in case this is run in a newer python version
+pythonVersion = sys.version_info.major
 
-# from pprint import pprint  # NOQA
+# If python major version is less than or equal to 2, use the munki plist tools to read binary plists, otherwise, python3 plistlib can read binary plists, so wrap those functions.
+if pythonVersion <= 2:
+    # Imports specifically for FoundationPlist
+    # PyLint cannot properly find names inside Cocoa libraries, so issues bogus
+    # No name 'Foo' in module 'Bar' warnings. Disable them.
+    # pylint: disable=E0611
+    from Foundation import NSData  # NOQA
+    from Foundation import NSPropertyListSerialization  # NOQA
+    from Foundation import NSPropertyListMutableContainers  # NOQA
+    from Foundation import NSPropertyListXMLFormat_v1_0  # NOQA
+    # pylint: enable=E0611
 
+    # Special thanks to the munki crew for the plist work.
+    # FoundationPlist from munki
+    class FoundationPlistException(Exception):
+        """Basic exception for plist errors"""
+        pass
 
-# Special thanks to the munki crew for the plist work.
-# FoundationPlist from munki
-class FoundationPlistException(Exception):
-    """Basic exception for plist errors"""
-    pass
+    class NSPropertyListSerializationException(FoundationPlistException):
+        """Read/parse error for plists"""
+        pass
 
-
-class NSPropertyListSerializationException(FoundationPlistException):
-    """Read/parse error for plists"""
-    pass
-
-
-def readPlist(filepath):
-    """
-    Read a .plist file from filepath.  Return the unpacked root object
-    (which is usually a dictionary).
-    """
-    plistData = NSData.dataWithContentsOfFile_(filepath)
-    dataObject, dummy_plistFormat, error = (
-        NSPropertyListSerialization.
-        propertyListFromData_mutabilityOption_format_errorDescription_(
-            plistData, NSPropertyListMutableContainers, None, None))
-    if dataObject is None:
-        if error:
-            error = error.encode('ascii', 'ignore')
+    def readPlist(filepath):
+        """
+        Read a .plist file from filepath.  Return the unpacked root object
+        (which is usually a dictionary).
+        """
+        plistData = NSData.dataWithContentsOfFile_(filepath)
+        dataObject, dummy_plistFormat, error = (
+            NSPropertyListSerialization.
+            propertyListFromData_mutabilityOption_format_errorDescription_(
+                plistData, NSPropertyListMutableContainers, None, None))
+        if dataObject is None:
+            if error:
+                error = error.encode('ascii', 'ignore')
+            else:
+                error = "Unknown error"
+            errmsg = "%s in file %s" % (error, filepath)
+            raise NSPropertyListSerializationException(errmsg)
         else:
-            error = "Unknown error"
-        errmsg = "%s in file %s" % (error, filepath)
-        raise NSPropertyListSerializationException(errmsg)
-    else:
-        return dataObject
+            return dataObject
 
-
-def readPlistFromString(data):
-    '''Read a plist data from a string. Return the root object.'''
-    try:
-        plistData = buffer(data)
-    except TypeError, err:
-        raise NSPropertyListSerializationException(err)
-    dataObject, dummy_plistFormat, error = (
-        NSPropertyListSerialization.
-        propertyListFromData_mutabilityOption_format_errorDescription_(
-            plistData, NSPropertyListMutableContainers, None, None))
-    if dataObject is None:
-        if error:
-            error = error.encode('ascii', 'ignore')
+    def readPlistFromString(data):
+        '''Read a plist data from a string. Return the root object.'''
+        try:
+            plistData = buffer(data)
+        except TypeError as err:
+            raise NSPropertyListSerializationException(err)
+        dataObject, dummy_plistFormat, error = (
+            NSPropertyListSerialization.
+            propertyListFromData_mutabilityOption_format_errorDescription_(
+                plistData, NSPropertyListMutableContainers, None, None))
+        if dataObject is None:
+            if error:
+                error = error.encode('ascii', 'ignore')
+            else:
+                error = "Unknown error"
+            raise NSPropertyListSerializationException(error)
         else:
-            error = "Unknown error"
-        raise NSPropertyListSerializationException(error)
-    else:
-        return dataObject
+            return dataObject
+elif pythonVersion >= 3:
+    def readPlist(data):
+        with open(data, 'rb') as fp:
+            return plistlib.load(fp)
+        # return plistlib.readPlist(data)
+
+    def readPlistFromString(data):
+        with open(data, 'rb') as fp:
+            return plistlib.loads(fp)
+        # return plistlib.readPlistFromString(data)
 
 
 class PrivacyProfiles():
@@ -130,7 +139,7 @@ class PrivacyProfiles():
 
             if process.returncode is 0:
                 # Only need the mime type, so return the last bit
-                result = result.replace(' ', '').replace('\n', '').split(':')[1].split('/')[1]
+                result = result.decode('utf8').replace(' ', '').replace('\n', '').split(':')[1].split('/')[1]
                 return result
 
     def readShebang(self, app_path):
@@ -158,15 +167,18 @@ class PrivacyProfiles():
                 # For some reason, part of the output gets dumped to stderr, but the bit we need goes to stdout
                 # Also, there can be multiple lines in the result, so handle this properly
                 # There are circumstances where the codesign 'designated => ' is not the start of the line, so handle these.
-                result = result.rstrip('\n').splitlines()
+                result = result.decode('utf8').rstrip('\n').splitlines()
                 result = [line for line in result if 'designated => ' in line][0]
                 result = result.partition('designated => ')
                 result = result[result.index('designated => ') + 1:][0]
-                # result = [x.rstrip('\n') for x in result.splitlines() if x.startswith('designated => ')][0]
-                return result
+
+                if pythonVersion <= 3:
+                    return str(result)
+                else:
+                    return result
 
             elif process.returncode is 1 and 'not signed' in error:
-                print 'App at {} is not signed. Exiting.'.format(path)
+                print('App at {} is not signed. Exiting.'.format(path))
                 sys.exit(1)
         else:
             raise OSError.FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
@@ -189,6 +201,7 @@ class PrivacyProfiles():
 
     def buildPayload(self, app_path, allowed, apple_event, code_requirement, comment):
         '''Builds an Accessibility payload for the profile.'''
+        # Make sure types are fine before proceeding.
         if type(allowed) is bool and type(code_requirement) is str and type(apple_event) is bool:
             # Check if building an Apple Event. The sending app and receiving app must be seperated by comma
             # Example: ['/Applications/Foo.app,/Applications/Bar.app']
@@ -200,7 +213,7 @@ class PrivacyProfiles():
                 receiving_app_identifier = receiving_app_identifiers['identifier']
                 receiving_app_identifier_type = receiving_app_identifiers['identifier_type']
             elif apple_event and ',' not in app_path and len(app_path.split(',')) == 2:
-                print 'AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app'
+                print('AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app')
                 sys.exit(1)
 
             app_identifiers = self.getIdentifierAndType(app_path=app_path)
@@ -402,7 +415,7 @@ def main():
 
     # Handle if no payload arguments are supplied, can't create an empty profile.
     if not any([accessibility_apps, allfiles_apps, events_apps, sysadmin_apps]):
-        print 'You must provide at least one payload type to create a profile.'
+        print('You must provide at least one payload type to create a profile.')
         parser.print_help()
         sys.exit(1)
 
@@ -467,7 +480,7 @@ def main():
     if events_apps:
         for app in events_apps:
             if not len(app.split(',')) == 2:
-                print 'AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app'
+                print('AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app')
                 sys.exit(1)
             else:
                 sending_app = app.split(',')[0]
@@ -489,14 +502,22 @@ def main():
 
     if filename:
         # Write the plist out to file
-        plistlib.writePlist(tccprofiles.template, filename)
+        if pythonVersion >= 3:
+            with open(filename, 'wb') as fp:
+                plistlib.dump(tccprofiles.template, fp, fmt=plistlib.FMT_XML, skipkeys=True)
+        else:
+            plistlib.writePlist(tccprofiles.template, filename)
 
         # Sign it if required
         if tccprofiles.sign_cert:
             tccprofiles.signProfile(certificate_name=tccprofiles.sign_cert, input_file=filename)
     else:
         # Print as formatted plist out to stdout
-        print plistlib.writePlistToString(tccprofiles.template).rstrip('\n')
+        if pythonVersion >= 3:
+            data = plistlib.dumps(tccprofiles.template, fmt=plistlib.FMT_XML, skipkeys=True)
+            print(data.decode('utf8').rstrip('\n'))
+        else:
+            print(plistlib.writePlistToString(tccprofiles.template).rstrip('\n'))
 
 
 if __name__ == '__main__':
