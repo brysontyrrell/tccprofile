@@ -32,7 +32,7 @@ macOS 10.12.6 (should work on any recent macOS release)
 ## Usage:
 1. `git clone https://github.com/carlashley/tccprofile`
 1. `cd tccprofile && chmod +x tccprofile.py`
-1. `./tccprofile --help`
+1. `./tccprofile.py --help`
 
 Example:
 ```
