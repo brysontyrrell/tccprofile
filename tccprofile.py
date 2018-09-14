@@ -264,12 +264,82 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=SaneUsageFormat)
 
     parser.add_argument(
+        '--ab', '--address-book',
+        type=str,
+        nargs='*',
+        dest='address_book_apps_list',
+        metavar='<app paths>',
+        help='Generate an AddressBook payload for the specified applications.',
+        required=False,
+    )
+
+    parser.add_argument(
+        '--cal', '--calendar',
+        type=str,
+        nargs='*',
+        dest='calendar_apps_list',
+        metavar='<app paths>',
+        help='Generate a Calendar payload for the specified applications.',
+        required=False,
+    )
+
+    parser.add_argument(
+        '--rem', '--reminders',
+        type=str,
+        nargs='*',
+        dest='reminders_apps_list',
+        metavar='<app paths>',
+        help='Generate a Reminders payload for the specified applications.',
+        required=False,
+    )
+
+    parser.add_argument(
+        '--pho', '--photos',
+        type=str,
+        nargs='*',
+        dest='photos_apps_list',
+        metavar='<app paths>',
+        help='Generate a Photos payload for the specified applications.',
+        required=False,
+    )
+
+    parser.add_argument(
+        '--cam', '--camera',
+        type=str,
+        nargs='*',
+        dest='camera_apps_list',
+        metavar='<app paths>',
+        help='Generate a Camera payload for the specified applications. This will be a DENY payload.',
+        required=False,
+    )
+
+    parser.add_argument(
+        '--mic', '--microphone',
+        type=str,
+        nargs='*',
+        dest='microphone_apps_list',
+        metavar='<app paths>',
+        help='Generate a Microphone payload for the specified applications. This will be a DENY payload.',
+        required=False,
+    )
+
+    parser.add_argument(
         '--acc', '--accessibility',
         type=str,
         nargs='*',
         dest='accessibility_apps_list',
         metavar='<app paths>',
         help='Generate an Accessibility payload for the specified applications.',
+        required=False,
+    )
+
+    parser.add_argument(
+        '--pe', '--post-event',
+        type=str,
+        nargs='*',
+        dest='post_event_apps_list',
+        metavar='<app paths>',
+        help='Generate a PostEvent payload for the specified applications to allow CoreGraphics APIs to send CGEvents.',
         required=False,
     )
 
@@ -379,33 +449,43 @@ def main():
     # Parse the args
     args = parser.parse_args()
 
+    # Put the args and results into a dictionary because this is more convenient than a bunch of if statements.
+    arguments = vars(args)
+
+    # List of Payload types to iterate on because lazy code is good code
+    payloads = ['AddressBook', 'Calendar', 'Reminders', 'Photos', 'Camera', 'Microphone', 'Accessibility', 'PostEvent', 'SystemPolicyAllFiles', 'SystemPolicySysAdminFiles', 'AppleEvents']
+
+    # Build services dict to insert
+    services_dict = {}
+
+    # Empty dict to use to hold all the app lists
+    app_lists = {}
+
     # Build up args to pass to the class init
-    if args.accessibility_apps_list:
-        accessibility_apps = args.accessibility_apps_list
-    else:
-        accessibility_apps = False
+    app_lists['AddressBook'] = arguments.get('address_book_apps_list', False)
+    app_lists['Calendar'] = arguments.get('calendar_apps_list', False)
+    app_lists['Reminders'] = arguments.get('reminders_apps_list', False)
+    app_lists['Photos'] = arguments.get('photos_apps_list', False)
+    app_lists['Camera'] = arguments.get('camera_apps_list', False)
+    app_lists['Microphone'] = arguments.get('microphone_apps_list', False)
+    app_lists['Accessibility'] = arguments.get('accessibility_apps_list', False)
+    app_lists['PostEvent'] = arguments.get('post_event_apps_list', False)
+    app_lists['SystemPolicyAllFiles'] = arguments.get('allfiles_apps_list', False)
+    app_lists['SystemPolicySysAdminFiles'] = arguments.get('sysadmin_apps_list', False)
+    app_lists['AppleEvents'] = arguments.get('events_apps_list', False)
 
-    if args.allfiles_apps_list:
-        allfiles_apps = args.allfiles_apps_list
-    else:
-        allfiles_apps = False
-
-    if args.events_apps_list:
-        events_apps = args.events_apps_list
-    else:
-        events_apps = False
-
-    if args.sysadmin_apps_list:
-        sysadmin_apps = args.sysadmin_apps_list
-    else:
-        sysadmin_apps = False
+    # Create payload lists in the services_dict
+    for payload in payloads:
+        if app_lists.get(payload):
+            services_dict[payload] = []
 
     # Handle if no payload arguments are supplied, can't create an empty profile.
-    if not any([accessibility_apps, allfiles_apps, events_apps, sysadmin_apps]):
+    if not any(app_lists.keys()):
         print 'You must provide at least one payload type to create a profile.'
         parser.print_help()
         sys.exit(1)
 
+    # Create the remaining arguments
     allow = args.allow_app
     description = args.payload_description
     payload_id = args.payload_identifier
@@ -429,63 +509,39 @@ def main():
     # Init the class
     tccprofiles = PrivacyProfiles(payload_description=description, payload_name=name, payload_identifier=payload_id, payload_organization=organization, payload_version=version, sign_cert=sign_cert)
 
-    # Build services dict to insert
-    services_dict = {}
-
-    if accessibility_apps:
-        services_dict['Accessibility'] = []
-
-    if allfiles_apps:
-        services_dict['SystemPolicyAllFiles'] = []
-
-    if events_apps:
-        services_dict['AppleEvents'] = []
-
-    if sysadmin_apps:
-        services_dict['SystemPolicySysAdminFiles'] = []
-
     # Insert the service dict into the template
     tccprofiles.template['PayloadContent'][0]['Services'] = services_dict
 
-    # Iterate over the apps to build payloads for
-    if accessibility_apps:
-        for app in accessibility_apps:
-            app_name = os.path.basename(os.path.splitext(app)[0])
-            codesign_result = tccprofiles.getCodeSignRequirements(path=app)
-            accessibility_dict = tccprofiles.buildPayload(app_path=app, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow Accessibility control for {}'.format(app_name))
-            if accessibility_dict not in tccprofiles.template['PayloadContent'][0]['Services']['Accessibility']:
-                tccprofiles.template['PayloadContent'][0]['Services']['Accessibility'].append(accessibility_dict)
+    # Iterate over the payloads dict to build payloads to insert into the template
+    for payload in payloads:
+        if app_lists.get(payload):
+            for app in app_lists[payload]:
+                if payload in ['Camera', 'Microphone']:  # Camera and Microphone payloads can only DENY an app access to that hardware.
+                    _allow = False
+                    allow_statement = 'Deny'
+                else:
+                    _allow = allow
+                    allow_statement = 'Allow'
 
-    if allfiles_apps:
-        for app in allfiles_apps:
-            app_name = os.path.basename(os.path.splitext(app)[0])
-            codesign_result = tccprofiles.getCodeSignRequirements(path=app)
-            allfiles_dict = tccprofiles.buildPayload(app_path=app, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow SystemPolicyAllFiles control for {}'.format(app_name))
-            if allfiles_dict not in tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicyAllFiles']:
-                tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicyAllFiles'].append(allfiles_dict)
+                if payload == 'AppleEvents':  # AppleEvent payload has additional requirements
+                    if not len(app.split(',')) == 2:
+                        print 'AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app'
+                        sys.exit(1)
+                    else:
+                        sending_app = app.split(',')[0]
+                        receiving_app = app.split(',')[1]
+                        sending_app_name = os.path.basename(os.path.splitext(sending_app)[0])
+                        receiving_app_name = os.path.basename(os.path.splitext(receiving_app)[0])
+                        codesign_result = tccprofiles.getCodeSignRequirements(path=app.split(',')[0])
+                        payload_dict = tccprofiles.buildPayload(app_path=app, allowed=allow, apple_event=True, code_requirement=codesign_result, comment='{} {} to send {} control to {}'.format(allow_statement, sending_app_name, payload, receiving_app_name))
 
-    if events_apps:
-        for app in events_apps:
-            if not len(app.split(',')) == 2:
-                print 'AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app'
-                sys.exit(1)
-            else:
-                sending_app = app.split(',')[0]
-                receiving_app = app.split(',')[1]
-                sending_app_name = os.path.basename(os.path.splitext(sending_app)[0])
-                receiving_app_name = os.path.basename(os.path.splitext(receiving_app)[0])
-                codesign_result = tccprofiles.getCodeSignRequirements(path=app.split(',')[0])
-                events_dict = tccprofiles.buildPayload(app_path=app, allowed=allow, apple_event=True, code_requirement=codesign_result, comment='Allow {} to send AppleEvents control to {}'.format(sending_app_name, receiving_app_name))
-                if events_dict not in tccprofiles.template['PayloadContent'][0]['Services']['AppleEvents']:
-                    tccprofiles.template['PayloadContent'][0]['Services']['AppleEvents'].append(events_dict)
+                else:
+                    app_name = os.path.basename(os.path.splitext(app)[0])
+                    codesign_result = tccprofiles.getCodeSignRequirements(path=app)
+                    payload_dict = tccprofiles.buildPayload(app_path=app, allowed=_allow, apple_event=False, code_requirement=codesign_result, comment='{} {} control for {}'.format(allow_statement, payload, app_name))
 
-    if sysadmin_apps:
-        for app in sysadmin_apps:
-            app_name = os.path.basename(os.path.splitext(app)[0])
-            codesign_result = tccprofiles.getCodeSignRequirements(path=app)
-            sysadminpolicy_dict = tccprofiles.buildPayload(app_path=app, allowed=allow, apple_event=False, code_requirement=codesign_result, comment='Allow SystemPolicySysAdminFiles control for {}'.format(app_name))
-            if sysadminpolicy_dict not in tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicySysAdminFiles']:
-                tccprofiles.template['PayloadContent'][0]['Services']['SystemPolicySysAdminFiles'].append(sysadminpolicy_dict)
+                if payload_dict not in tccprofiles.template['PayloadContent'][0]['Services'][payload]:
+                    tccprofiles.template['PayloadContent'][0]['Services'][payload].append(payload_dict)
 
     if filename:
         # Write the plist out to file
