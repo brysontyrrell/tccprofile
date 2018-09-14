@@ -5,6 +5,9 @@ Currently it _only_ generates payloads for _application_ binaries, and will gene
 
 The applications also need to be installed on the system you're running `tccprofile.py` on.
 
+## Camera and Microphone payloads
+Per Apple's [documentation](https://developer.apple.com/enterprise/documentation/Configuration-Profile-Reference.pdf) on the Privacy payloads, `tccprofile.py` will automatically set the `Allowed` value to `False`, even if the `--allow` flag is used.
+
 ## Code Signing Requirements
 The output of `codesign -dr - /Application/Application.app` is likely to vary as the developer of the app releases new versions, etc, or needs to re-sign the app for whatever reason. It will be critical to maintain an accurate profile with these correct `codesign` results, as being not specific enough can potentially lead to bad actors maliciously acting on your system.
 
