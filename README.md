@@ -5,7 +5,7 @@ Currently it _only_ generates payloads for _application_ binaries, and will gene
 
 The applications also need to be installed on the system you're running `tccprofile.py` on.
 
-####Notes:
+#### Notes:
 At this time, the `StaticCode` value in a payload is not implemented in this iteration of `tccprofile.py`. For the time being, if you require this, add it to the profile manually after generating it.
 
 The `--allow` argument is applied to _all_ payloads created by this tool with the exception of the `Camera` and `Microphone` payloads (see section below). If you do need to disable specific apps in payloads, modify the profile after generating it.
