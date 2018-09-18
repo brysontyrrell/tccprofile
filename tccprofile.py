@@ -56,7 +56,7 @@ def readPlist(filepath):
 
 
 def readPlistFromString(data):
-    '''Read a plist data from a string. Return the root object.'''
+    """Read a plist data from a string. Return the root object."""
     try:
         plistData = buffer(data)
     except TypeError, err:
@@ -77,7 +77,9 @@ def readPlistFromString(data):
 
 class PrivacyProfiles():
     def __init__(self, payload_description, payload_name, payload_identifier, payload_organization, payload_version, sign_cert):
-        '''Creates a Privacy Preferences Policy Control Profile for macOS Mojave.'''
+        """Creates a Privacy Preferences Policy Control Profile for macOS
+        Mojave.
+        """
         # Init the things to put in the template, and elsewhere
         self.payload_description = payload_description
         self.payload_name = payload_name
@@ -122,7 +124,7 @@ class PrivacyProfiles():
         # add in <string>/usr/bin/python</string> to the ProgramArguments array _before_ the <string>/path/to/pythonscript.py</string> line.
 
     def getFileMimeType(self, path):
-        '''Returns the mimetype of a given file.'''
+        """Returns the mimetype of a given file."""
         if os.path.exists(path.rstrip('/')):
             cmd = ['/usr/bin/file', '--mime-type', path]
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -134,7 +136,9 @@ class PrivacyProfiles():
                 return result
 
     def readShebang(self, app_path):
-        '''Returns the contents of the shebang in a script file, as long as env is not in the shebang'''
+        """Returns the contents of the shebang in a script file, as long as env
+        is not in the shebang
+        """
         with open(app_path, 'r') as textfile:
             line = textfile.readline().rstrip('\n')
             if line.startswith('#!') and 'env ' not in line:
@@ -143,7 +147,7 @@ class PrivacyProfiles():
                 raise Exception('Cannot check codesign for shebangs that refer to \'env\'.')
 
     def getCodeSignRequirements(self, path):
-        '''Returns the values for the CodeRequirement key.'''
+        """Returns the values for the CodeRequirement key."""
         if os.path.exists(path.rstrip('/')):
             # Handle situations where path is a script, and shebang is ['/bin/sh', '/bin/bash', '/usr/bin/python']
             mimetype = self.getFileMimeType(path=path)
@@ -172,7 +176,9 @@ class PrivacyProfiles():
             raise OSError.FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
 
     def getIdentifierAndType(self, app_path):
-        '''Checks file type, and returns appropriate values for `Identifier` and `IdentifierType` keys in the final profile payload.'''
+        """Checks file type, and returns appropriate values for `Identifier`and
+        `IdentifierType` keys in the final profile payload.
+        """
         mimetype = self.getFileMimeType(path=app_path)
         if mimetype in ['x-shellscript', 'x-python']:
             identifier = app_path
@@ -188,7 +194,7 @@ class PrivacyProfiles():
         return {'identifier': identifier, 'identifier_type': identifier_type}
 
     def buildPayload(self, app_path, allowed, apple_event, code_requirement, comment):
-        '''Builds an Accessibility payload for the profile.'''
+        """Builds an Accessibility payload for the profile."""
         if type(allowed) is bool and type(code_requirement) is str and type(apple_event) is bool:
             # Check if building an Apple Event. The sending app and receiving app must be seperated by comma
             # Example: ['/Applications/Foo.app,/Applications/Bar.app']
@@ -225,7 +231,7 @@ class PrivacyProfiles():
             return result
 
     def signProfile(self, certificate_name, input_file):
-        '''Signs the profile.'''
+        """Signs the profile."""
         if self.sign_cert and os.path.exists(input_file) and input_file.endswith('.mobileconfig'):
             cmd = ['/usr/bin/security', 'cms', '-S', '-N', certificate_name, '-i', input_file, '-o', '{}'.format(input_file.replace('.mobileconfig', '_Signed.mobileconfig'))]
             subprocess.call(cmd)
@@ -233,8 +239,10 @@ class PrivacyProfiles():
 
 def main():
     class SaneUsageFormat(argparse.HelpFormatter):
-        '''Makes the help output somewhat more sane. Code used was from Matt Wilkie.'''
-        '''http://stackoverflow.com/questions/9642692/argparse-help-without-duplicate-allcaps/9643162#9643162'''
+        """Makes the help output somewhat more sane. Code used was from Matt Wilkie.
+
+        http://stackoverflow.com/questions/9642692/argparse-help-without-duplicate-allcaps/9643162#9643162
+        """
 
         def _format_action_invocation(self, action):
             if not action.option_strings:
