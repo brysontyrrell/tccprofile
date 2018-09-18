@@ -173,7 +173,7 @@ class PrivacyProfiles():
                 print 'App at {} is not signed. Exiting.'.format(path)
                 sys.exit(1)
         else:
-            raise OSError.FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
+            raise OSError(errno.ENOENT, os.strerror(errno.ENOENT), path)
 
     def getIdentifierAndType(self, app_path):
         """Checks file type, and returns appropriate values for `Identifier`and
