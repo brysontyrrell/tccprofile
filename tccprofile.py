@@ -137,7 +137,7 @@ class PrivacyProfiles(object):
     ]
 
     def __init__(self, payload_description, payload_name, payload_identifier,
-                 payload_organization, payload_version, sign_cert):
+                 payload_organization, payload_version, sign_cert, filename):
         """Creates a Privacy Preferences Policy Control Profile for macOS
         Mojave.
         """
@@ -150,7 +150,6 @@ class PrivacyProfiles(object):
         self.payload_uuid = str(uuid.uuid1()).upper()  # This is used in the 'PayloadContent' part of the profile
         self.profile_uuid = str(uuid.uuid1()).upper()  # This is used in the root of the profile
         self.payload_version = payload_version
-        self.sign_cert = sign_cert
 
         # Basic requirements for this profile to work
         self.template = {
@@ -177,7 +176,8 @@ class PrivacyProfiles(object):
         }
 
         self._app_lists = dict()
-        self._filename = None
+        self._sign_cert = self._set_sign_profile(sign_cert)
+        self._filename = self._set_filename(filename)
 
         # Note, there's different values for the python codesigns depending on which python is called.
         # /usr/bin/python is com.apple.python
@@ -271,13 +271,41 @@ class PrivacyProfiles(object):
                     if payload_dict not in self.template['PayloadContent'][0]['Services'][payload]:
                         self.template['PayloadContent'][0]['Services'][payload].append(payload_dict)
 
-    def sign_profile(self, certificate_name, input_file):
-        """Signs the profile."""
-        if self.sign_cert and os.path.exists(input_file) and input_file.endswith('.mobileconfig'):
-            cmd = ['/usr/bin/security', 'cms', '-S', '-N', certificate_name, '-i', input_file, '-o', '{}'.format(input_file.replace('.mobileconfig', '_Signed.mobileconfig'))]
-            subprocess.call(cmd)
+    def write(self):
+        if self._filename:
+            # Write the plist out to file
+            plistlib.writePlist(self.template, self._filename)
 
-    def _get_file_mime_type(self, path):
+            # Sign it if required
+            if self._sign_cert:
+                self._sign_profile(
+                    certificate_name=self._sign_cert,
+                    input_file=self._filename
+                )
+        else:
+            # Print as formatted plist out to stdout
+            print plistlib.writePlistToString(self.template).rstrip('\n')
+
+    @staticmethod
+    def _set_sign_profile(sign_cert):
+        if sign_cert and len(sign_cert):
+            return sign_cert[0]
+        else:
+            return False
+
+    @staticmethod
+    def _set_filename(filename):
+        if filename:
+            _filename = os.path.expandvars(os.path.expanduser(filename))
+            if not os.path.splitext(filename)[1] == '.mobileconfig':
+                _filename = filename.replace(os.path.splitext(filename)[1], '.mobileconfig')
+
+            return _filename
+        else:
+            return None
+
+    @staticmethod
+    def _get_file_mime_type(path):
         """Returns the mimetype of a given file."""
         if os.path.exists(path.rstrip('/')):
             cmd = ['/usr/bin/file', '--mime-type', path]
@@ -289,7 +317,8 @@ class PrivacyProfiles(object):
                 result = result.replace(' ', '').replace('\n', '').split(':')[1].split('/')[1]
                 return result
 
-    def _read_shebang(self, app_path):
+    @staticmethod
+    def _read_shebang(app_path):
         """Returns the contents of the shebang in a script file, as long as env
         is not in the shebang
         """
@@ -368,7 +397,8 @@ class PrivacyProfiles(object):
             identifier = app_identifiers['identifier']
             identifier_type = app_identifiers['identifier_type']
 
-            # Only return a basic dict, even though the Services needs a dict supplied, and the 'Accessibility' "payload" is a list of dicts.
+            # Only return a basic dict, even though the Services needs a dict
+            # supplied, and the 'Accessibility' "payload" is a list of dicts.
             result = {
                 'Allowed': allowed,
                 'CodeRequirement': code_requirement,
@@ -377,13 +407,20 @@ class PrivacyProfiles(object):
                 'IdentifierType': identifier_type,
             }
 
-            # If the payload is an AppleEvent type, there are additional requirements relating to the receiving app.
+            # If the payload is an AppleEvent type, there are additional
+            # requirements relating to the receiving app.
             if apple_event:
                 result['AEReceiverIdentifier'] = receiving_app_identifier
                 result['AEReceiverIdentifierType'] = receiving_app_identifier_type
                 result['AEReceiverCodeRequirement'] = self._get_code_sign_requirements(path=receiving_app)
 
             return result
+
+    def _sign_profile(self, certificate_name, input_file):
+        """Signs the profile."""
+        if self._sign_cert and os.path.exists(input_file) and input_file.endswith('.mobileconfig'):
+            cmd = ['/usr/bin/security', 'cms', '-S', '-N', certificate_name, '-i', input_file, '-o', '{}'.format(input_file.replace('.mobileconfig', '_Signed.mobileconfig'))]
+            subprocess.call(cmd)
 
 
 class SaneUsageFormat(argparse.HelpFormatter):
@@ -636,48 +673,23 @@ def main():
         if args.launch_gui:
             launch_gui(args)
 
-    if args.payload_filename:
-        filename = args.payload_filename
-        filename = os.path.expandvars(os.path.expanduser(filename))
-        if not os.path.splitext(filename)[1] == '.mobileconfig':
-            filename = filename.replace(os.path.splitext(filename)[1], '.mobileconfig')
-    else:
-        filename = False
-
-    if args.sign_profile and len(args.sign_profile):
-        sign_cert = args.sign_profile[0]
-    else:
-        sign_cert = False
-
-    # Init the class
     tccprofiles = PrivacyProfiles(
         payload_description=args.payload_description,
         payload_name=args.payload_name,
         payload_identifier=args.payload_identifier,
         payload_organization=args.payload_org,
         payload_version=args.payload_ver,
-        sign_cert=sign_cert
+        sign_cert=args.sign_profile,
+        filename=args.payload_filename
     )
 
     # Insert the service dict into the template
     tccprofiles.set_services_dict(args)
 
-    # Iterate over the payloads dict to build payloads to insert into the template
+    # Iterate over the payloads dict to build payloads
     tccprofiles.build_profile(allow=args.allow_app)
 
-    if filename:
-        # Write the plist out to file
-        plistlib.writePlist(tccprofiles.template, filename)
-
-        # Sign it if required
-        if tccprofiles.sign_cert:
-            tccprofiles.sign_profile(
-                certificate_name=tccprofiles.sign_cert,
-                input_file=filename
-            )
-    else:
-        # Print as formatted plist out to stdout
-        print plistlib.writePlistToString(tccprofiles.template).rstrip('\n')
+    tccprofiles.write()
 
 
 if __name__ == '__main__':
