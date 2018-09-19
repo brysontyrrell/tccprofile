@@ -79,7 +79,7 @@ class App(tk.Frame):
         self.master.destroy()
 
 
-def readPlist(filepath):
+def read_plist(filepath):
     """
     Read a .plist file from filepath.  Return the unpacked root object
     (which is usually a dictionary).
@@ -100,7 +100,7 @@ def readPlist(filepath):
         return dataObject
 
 
-def readPlistFromString(data):
+def read_plist_from_string(data):
     """Read a plist data from a string. Return the root object."""
     try:
         plistData = buffer(data)
@@ -136,7 +136,8 @@ class PrivacyProfiles(object):
         'AppleEvents'
     ]
 
-    def __init__(self, payload_description, payload_name, payload_identifier, payload_organization, payload_version, sign_cert):
+    def __init__(self, payload_description, payload_name, payload_identifier,
+                 payload_organization, payload_version, sign_cert):
         """Creates a Privacy Preferences Policy Control Profile for macOS
         Mojave.
         """
@@ -242,9 +243,9 @@ class PrivacyProfiles(object):
                                 os.path.splitext(sending_app)[0])
                             receiving_app_name = os.path.basename(
                                 os.path.splitext(receiving_app)[0])
-                            codesign_result = self.getCodeSignRequirements(
+                            codesign_result = self._get_code_sign_requirements(
                                 path=app.split(',')[0])
-                            payload_dict = self.buildPayload(
+                            payload_dict = self._build_payload(
                                 app_path=app, allowed=allow, apple_event=True,
                                 code_requirement=codesign_result,
                                 comment='{} {} to send {} control to {}'.format(
@@ -253,9 +254,9 @@ class PrivacyProfiles(object):
 
                     else:
                         app_name = os.path.basename(os.path.splitext(app)[0])
-                        codesign_result = self.getCodeSignRequirements(
+                        codesign_result = self._get_code_sign_requirements(
                             path=app)
-                        payload_dict = self.buildPayload(
+                        payload_dict = self._build_payload(
                             app_path=app,
                             allowed=_allow,
                             apple_event=False,
@@ -270,7 +271,13 @@ class PrivacyProfiles(object):
                     if payload_dict not in self.template['PayloadContent'][0]['Services'][payload]:
                         self.template['PayloadContent'][0]['Services'][payload].append(payload_dict)
 
-    def getFileMimeType(self, path):
+    def sign_profile(self, certificate_name, input_file):
+        """Signs the profile."""
+        if self.sign_cert and os.path.exists(input_file) and input_file.endswith('.mobileconfig'):
+            cmd = ['/usr/bin/security', 'cms', '-S', '-N', certificate_name, '-i', input_file, '-o', '{}'.format(input_file.replace('.mobileconfig', '_Signed.mobileconfig'))]
+            subprocess.call(cmd)
+
+    def _get_file_mime_type(self, path):
         """Returns the mimetype of a given file."""
         if os.path.exists(path.rstrip('/')):
             cmd = ['/usr/bin/file', '--mime-type', path]
@@ -282,7 +289,7 @@ class PrivacyProfiles(object):
                 result = result.replace(' ', '').replace('\n', '').split(':')[1].split('/')[1]
                 return result
 
-    def readShebang(self, app_path):
+    def _read_shebang(self, app_path):
         """Returns the contents of the shebang in a script file, as long as env
         is not in the shebang
         """
@@ -293,13 +300,14 @@ class PrivacyProfiles(object):
             elif line.startswith('#!') and 'env ' in line:
                 raise Exception('Cannot check codesign for shebangs that refer to \'env\'.')
 
-    def getCodeSignRequirements(self, path):
+    def _get_code_sign_requirements(self, path):
         """Returns the values for the CodeRequirement key."""
         if os.path.exists(path.rstrip('/')):
-            # Handle situations where path is a script, and shebang is ['/bin/sh', '/bin/bash', '/usr/bin/python']
-            mimetype = self.getFileMimeType(path=path)
+            # Handle situations where path is a script, and shebang is
+            # ['/bin/sh', '/bin/bash', '/usr/bin/python']
+            mimetype = self._get_file_mime_type(path=path)
             if mimetype in ['x-python', 'x-shellscript']:
-                path = self.readShebang(app_path=path)
+                path = self._read_shebang(app_path=path)
 
             cmd = ['/usr/bin/codesign', '-dr', '-', path]
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -322,17 +330,17 @@ class PrivacyProfiles(object):
         else:
             raise OSError(errno.ENOENT, os.strerror(errno.ENOENT), path)
 
-    def getIdentifierAndType(self, app_path):
+    def _get_identifier_and_type(self, app_path):
         """Checks file type, and returns appropriate values for `Identifier`and
         `IdentifierType` keys in the final profile payload.
         """
-        mimetype = self.getFileMimeType(path=app_path)
+        mimetype = self._get_file_mime_type(path=app_path)
         if mimetype in ['x-shellscript', 'x-python']:
             identifier = app_path
             identifier_type = 'path'
         else:
             try:
-                identifier = readPlist(os.path.join(app_path.rstrip('/'), 'Contents/Info.plist'))['CFBundleIdentifier']
+                identifier = read_plist(os.path.join(app_path.rstrip('/'), 'Contents/Info.plist'))['CFBundleIdentifier']
                 identifier_type = 'bundleID'
             except Exception:
                 identifier = app_path.rstrip('/')
@@ -340,7 +348,7 @@ class PrivacyProfiles(object):
 
         return {'identifier': identifier, 'identifier_type': identifier_type}
 
-    def buildPayload(self, app_path, allowed, apple_event, code_requirement, comment):
+    def _build_payload(self, app_path, allowed, apple_event, code_requirement, comment):
         """Builds an Accessibility payload for the profile."""
         if type(allowed) is bool and type(code_requirement) is str and type(apple_event) is bool:
             # Check if building an Apple Event. The sending app and receiving app must be seperated by comma
@@ -349,14 +357,14 @@ class PrivacyProfiles(object):
             if apple_event and ',' in app_path and len(app_path.split(',')) == 2:
                 receiving_app = app_path.split(',')[1]
                 app_path = app_path.split(',')[0]
-                receiving_app_identifiers = self.getIdentifierAndType(app_path=receiving_app)
+                receiving_app_identifiers = self._get_identifier_and_type(app_path=receiving_app)
                 receiving_app_identifier = receiving_app_identifiers['identifier']
                 receiving_app_identifier_type = receiving_app_identifiers['identifier_type']
             elif apple_event and ',' not in app_path and len(app_path.split(',')) == 2:
                 print 'AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app'
                 sys.exit(1)
 
-            app_identifiers = self.getIdentifierAndType(app_path=app_path)
+            app_identifiers = self._get_identifier_and_type(app_path=app_path)
             identifier = app_identifiers['identifier']
             identifier_type = app_identifiers['identifier_type']
 
@@ -373,15 +381,9 @@ class PrivacyProfiles(object):
             if apple_event:
                 result['AEReceiverIdentifier'] = receiving_app_identifier
                 result['AEReceiverIdentifierType'] = receiving_app_identifier_type
-                result['AEReceiverCodeRequirement'] = self.getCodeSignRequirements(path=receiving_app)
+                result['AEReceiverCodeRequirement'] = self._get_code_sign_requirements(path=receiving_app)
 
             return result
-
-    def signProfile(self, certificate_name, input_file):
-        """Signs the profile."""
-        if self.sign_cert and os.path.exists(input_file) and input_file.endswith('.mobileconfig'):
-            cmd = ['/usr/bin/security', 'cms', '-S', '-N', certificate_name, '-i', input_file, '-o', '{}'.format(input_file.replace('.mobileconfig', '_Signed.mobileconfig'))]
-            subprocess.call(cmd)
 
 
 class SaneUsageFormat(argparse.HelpFormatter):
@@ -624,16 +626,13 @@ def launch_gui(args=None):
     AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
     app.mainloop()
 
-    sys.exit(0)
-
 
 def main():
-    print(sys.argv)
     if len(sys.argv) == 1:
         launch_gui()
+        sys.exit(0)
     else:
         args = parse_args()
-
         if args.launch_gui:
             launch_gui(args)
 
@@ -672,7 +671,7 @@ def main():
 
         # Sign it if required
         if tccprofiles.sign_cert:
-            tccprofiles.signProfile(
+            tccprofiles.sign_profile(
                 certificate_name=tccprofiles.sign_cert,
                 input_file=filename
             )
