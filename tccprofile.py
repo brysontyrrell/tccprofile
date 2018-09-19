@@ -8,11 +8,13 @@ import plistlib
 import uuid
 import subprocess
 import sys
+import Tkinter as tk
 
 # Imports specifically for FoundationPlist
 # PyLint cannot properly find names inside Cocoa libraries, so issues bogus
 # No name 'Foo' in module 'Bar' warnings. Disable them.
 # pylint: disable=E0611
+import AppKit
 from Foundation import NSData  # NOQA
 from Foundation import NSPropertyListSerialization  # NOQA
 from Foundation import NSPropertyListMutableContainers  # NOQA
@@ -32,6 +34,44 @@ class FoundationPlistException(Exception):
 class NSPropertyListSerializationException(FoundationPlistException):
     """Read/parse error for plists"""
     pass
+
+
+class App(tk.Frame):
+    def __init__(self, master):
+        tk.Frame.__init__(self, master)
+        self.pack()
+        self.master.title("Hello World")
+        self.master.resizable(False, False)
+        self.master.tk_setPalette(background='#ececec')
+
+        self.master.protocol('WM_DELETE_WINDOW', self.click_cancel)
+        self.master.bind('<Return>', self.click_ok)
+        self.master.bind('<Escape>', self.click_cancel)
+
+        x = (self.master.winfo_screenwidth() - self.master.winfo_reqwidth()) / 2
+        y = (self.master.winfo_screenheight() - self.master.winfo_reqheight()) / 3
+        self.master.geometry("+{}+{}".format(x, y))
+
+        self.master.config(menu=tk.Menu(self.master))
+
+        dialog_frame = tk.Frame(self)
+        dialog_frame.pack(padx=20, pady=15)
+
+        tk.Label(dialog_frame, text="This is your first GUI. (highfive)").pack()
+
+        button_frame = tk.Frame(self)
+        button_frame.pack(padx=15, pady=(0, 15), anchor='e')
+
+        tk.Button(button_frame, text='OK', default='active', command=self.click_ok).pack(side='right')
+
+        tk.Button(button_frame, text='Cancel', command=self.click_cancel).pack(side='right')
+
+    def click_ok(self, event=None):
+        print("The user clicked 'OK'")
+
+    def click_cancel(self, event=None):
+        print("The user clicked 'Cancel'")
+        self.master.destroy()
 
 
 def readPlist(filepath):
@@ -237,38 +277,38 @@ class PrivacyProfiles():
             subprocess.call(cmd)
 
 
-def main():
-    class SaneUsageFormat(argparse.HelpFormatter):
-        """Makes the help output somewhat more sane. Code used was from Matt Wilkie.
+class SaneUsageFormat(argparse.HelpFormatter):
+    """Makes the help output somewhat more sane. Code used was from Matt Wilkie.
 
-        http://stackoverflow.com/questions/9642692/argparse-help-without-duplicate-allcaps/9643162#9643162
-        """
+    http://stackoverflow.com/questions/9642692/argparse-help-without-duplicate-allcaps/9643162#9643162
+    """
 
-        def _format_action_invocation(self, action):
-            if not action.option_strings:
-                default = self._get_default_metavar_for_positional(action)
-                metavar, = self._metavar_formatter(action, default)(1)
-                return metavar
+    def _format_action_invocation(self, action):
+        if not action.option_strings:
+            default = self._get_default_metavar_for_positional(action)
+            metavar, = self._metavar_formatter(action, default)(1)
+            return metavar
+        else:
+            parts = []
+            # if the Optional doesn't take a value, format is:
+            #    -s, --long
+            if action.nargs == 0:
+                parts.extend(action.option_strings)
+            # if the Optional takes a value, format is:
+            #    -s ARGS, --long ARGS
             else:
-                parts = []
-                # if the Optional doesn't take a value, format is:
-                #    -s, --long
-                if action.nargs == 0:
-                    parts.extend(action.option_strings)
-                # if the Optional takes a value, format is:
-                #    -s ARGS, --long ARGS
-                else:
-                    default = self._get_default_metavar_for_optional(action)
-                    args_string = self._format_args(action, default)
-                    for option_string in action.option_strings:
-                        parts.append(option_string)
-                    return '{} {}'.format(', '.join(parts), args_string)
-                return ', '.join(parts)
+                default = self._get_default_metavar_for_optional(action)
+                args_string = self._format_args(action, default)
+                for option_string in action.option_strings:
+                    parts.append(option_string)
+                return '{} {}'.format(', '.join(parts), args_string)
+            return ', '.join(parts)
 
-        def _get_default_metavar_for_optional(self, action):
-            return action.dest.upper()
+    def _get_default_metavar_for_optional(self, action):
+        return action.dest.upper()
 
-    # Now build the arguments
+
+def parse_args():
     parser = argparse.ArgumentParser(formatter_class=SaneUsageFormat)
 
     parser.add_argument(
@@ -454,11 +494,46 @@ def main():
         required=False,
     )
 
+    parser.add_argument(
+        '--lg', '--launch-gui',
+        action='store_true',
+        default=False,
+        dest='launch_gui',
+        help='Launch the GUI and populate the provided values passed via the arguments.',
+        required=False
+    )
+
     # Parse the args
     args = parser.parse_args()
 
-    # Put the args and results into a dictionary because this is more convenient than a bunch of if statements.
-    arguments = vars(args)
+    # Put the args and results into a dictionary because this is more
+    # convenient than a bunch of if statements.
+    return vars(args)
+
+
+def launch_gui(**kwargs):
+    info = AppKit.NSBundle.mainBundle().infoDictionary()
+    info['LSUIElement'] = True
+
+    for k, v in kwargs.items():
+        print('{}: {}'.format(k, v))
+
+    root = tk.Tk()
+    app = App(root)
+    AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+    app.mainloop()
+
+    sys.exit(0)
+
+
+def main():
+    print(sys.argv)
+    if len(sys.argv) == 1:
+        launch_gui()
+    else:
+        arguments = parse_args()
+        if arguments['launch_gui']:
+            launch_gui(**arguments)
 
     # List of Payload types to iterate on because lazy code is good code
     payloads = ['AddressBook', 'Calendar', 'Reminders', 'Photos', 'Camera', 'Microphone', 'Accessibility', 'PostEvent', 'SystemPolicyAllFiles', 'SystemPolicySysAdminFiles', 'AppleEvents']
