@@ -36,6 +36,11 @@ class NSPropertyListSerializationException(FoundationPlistException):
     pass
 
 
+class TCCProfileException(Exception):
+    """Base exception for script errors"""
+    pass
+
+
 class App(tk.Frame):
     def __init__(self, master):
         tk.Frame.__init__(self, master)
@@ -115,7 +120,22 @@ def readPlistFromString(data):
         return dataObject
 
 
-class PrivacyProfiles():
+class PrivacyProfiles(object):
+    # List of Payload types to iterate on because lazy code is good code
+    PAYLOADS = [
+        'AddressBook',
+        'Calendar',
+        'Reminders',
+        'Photos',
+        'Camera',
+        'Microphone',
+        'Accessibility',
+        'PostEvent',
+        'SystemPolicyAllFiles',
+        'SystemPolicySysAdminFiles',
+        'AppleEvents'
+    ]
+
     def __init__(self, payload_description, payload_name, payload_identifier, payload_organization, payload_version, sign_cert):
         """Creates a Privacy Preferences Policy Control Profile for macOS
         Mojave.
@@ -142,7 +162,7 @@ class PrivacyProfiles():
                     'PayloadType': self.payload_type,
                     'PayloadUUID': self.payload_uuid,
                     'PayloadVersion': self.payload_version,
-                    'Services': []  # This will be an empty list to house the dicts.
+                    'Services': dict()  # This will be an empty list to house the dicts.
                 }
             ],
             'PayloadDescription': self.payload_description,
@@ -155,6 +175,9 @@ class PrivacyProfiles():
             'PayloadVersion': self.payload_version,
         }
 
+        self._app_lists = dict()
+        self._filename = None
+
         # Note, there's different values for the python codesigns depending on which python is called.
         # /usr/bin/python is com.apple.python
         # /System/Library/Frameworks/Python.framework/Resources/Python.app is org.python.python
@@ -162,6 +185,90 @@ class PrivacyProfiles():
         # the interpreter in the ProgramArguments array.
         # For the time being, strongly recommend any LaunchDaemons/LaunchAgents that launch python scripts to
         # add in <string>/usr/bin/python</string> to the ProgramArguments array _before_ the <string>/path/to/pythonscript.py</string> line.
+
+    def set_services_dict(self, args):
+        arguments = vars(args)
+        app_lists = dict()
+
+        # Build up args to pass to the class init
+        app_lists['AddressBook'] = arguments.get('address_book_apps_list',
+                                                 False)
+        app_lists['Calendar'] = arguments.get('calendar_apps_list', False)
+        app_lists['Reminders'] = arguments.get('reminders_apps_list', False)
+        app_lists['Photos'] = arguments.get('photos_apps_list', False)
+        app_lists['Camera'] = arguments.get('camera_apps_list', False)
+        app_lists['Microphone'] = arguments.get('microphone_apps_list', False)
+        app_lists['Accessibility'] = arguments.get('accessibility_apps_list',
+                                                   False)
+        app_lists['PostEvent'] = arguments.get('post_event_apps_list', False)
+        app_lists['SystemPolicyAllFiles'] = arguments.get('allfiles_apps_list',
+                                                          False)
+        app_lists['SystemPolicySysAdminFiles'] = arguments.get(
+            'sysadmin_apps_list', False)
+        app_lists['AppleEvents'] = arguments.get('events_apps_list', False)
+
+        # Handle if no payload arguments are supplied,
+        # Can't create an empty profile.
+        if not any(app_lists.keys()):
+            print 'You must provide at least one payload type to create a profile.'
+            raise TCCProfileException
+
+        self._app_lists = app_lists
+
+        # Create payload lists in the services_dict
+        for payload in self.PAYLOADS:
+            if app_lists.get(payload):
+                self.template['PayloadContent'][0]['Services'][payload] = []
+
+    def build_profile(self, allow):
+        for payload in self.PAYLOADS:
+            if self._app_lists.get(payload):
+                for app in self._app_lists[payload]:
+                    if payload in ['Camera', 'Microphone']:  # Camera and Microphone payloads can only DENY an app access to that hardware.
+                        _allow = False
+                        allow_statement = 'Deny'
+                    else:
+                        _allow = allow
+                        allow_statement = 'Allow'
+
+                    if payload == 'AppleEvents':  # AppleEvent payload has additional requirements
+                        if not len(app.split(',')) == 2:
+                            print 'AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app'
+                            sys.exit(1)
+                        else:
+                            sending_app = app.split(',')[0]
+                            receiving_app = app.split(',')[1]
+                            sending_app_name = os.path.basename(
+                                os.path.splitext(sending_app)[0])
+                            receiving_app_name = os.path.basename(
+                                os.path.splitext(receiving_app)[0])
+                            codesign_result = self.getCodeSignRequirements(
+                                path=app.split(',')[0])
+                            payload_dict = self.buildPayload(
+                                app_path=app, allowed=allow, apple_event=True,
+                                code_requirement=codesign_result,
+                                comment='{} {} to send {} control to {}'.format(
+                                    allow_statement, sending_app_name, payload,
+                                    receiving_app_name))
+
+                    else:
+                        app_name = os.path.basename(os.path.splitext(app)[0])
+                        codesign_result = self.getCodeSignRequirements(
+                            path=app)
+                        payload_dict = self.buildPayload(
+                            app_path=app,
+                            allowed=_allow,
+                            apple_event=False,
+                            code_requirement=codesign_result,
+                            comment='{} {} control for {}'.format(
+                                allow_statement,
+                                payload,
+                                app_name
+                            )
+                        )
+
+                    if payload_dict not in self.template['PayloadContent'][0]['Services'][payload]:
+                        self.template['PayloadContent'][0]['Services'][payload].append(payload_dict)
 
     def getFileMimeType(self, path):
         """Returns the mimetype of a given file."""
@@ -503,20 +610,14 @@ def parse_args():
         required=False
     )
 
-    # Parse the args
-    args = parser.parse_args()
-
-    # Put the args and results into a dictionary because this is more
-    # convenient than a bunch of if statements.
-    return vars(args)
+    return parser.parse_args()
 
 
-def launch_gui(**kwargs):
+def launch_gui(args=None):
     info = AppKit.NSBundle.mainBundle().infoDictionary()
     info['LSUIElement'] = True
 
-    for k, v in kwargs.items():
-        print('{}: {}'.format(k, v))
+    print(args)
 
     root = tk.Tk()
     app = App(root)
@@ -531,50 +632,10 @@ def main():
     if len(sys.argv) == 1:
         launch_gui()
     else:
-        arguments = parse_args()
-        if arguments['launch_gui']:
-            launch_gui(**arguments)
+        args = parse_args()
 
-    # List of Payload types to iterate on because lazy code is good code
-    payloads = ['AddressBook', 'Calendar', 'Reminders', 'Photos', 'Camera', 'Microphone', 'Accessibility', 'PostEvent', 'SystemPolicyAllFiles', 'SystemPolicySysAdminFiles', 'AppleEvents']
-
-    # Build services dict to insert
-    services_dict = {}
-
-    # Empty dict to use to hold all the app lists
-    app_lists = {}
-
-    # Build up args to pass to the class init
-    app_lists['AddressBook'] = arguments.get('address_book_apps_list', False)
-    app_lists['Calendar'] = arguments.get('calendar_apps_list', False)
-    app_lists['Reminders'] = arguments.get('reminders_apps_list', False)
-    app_lists['Photos'] = arguments.get('photos_apps_list', False)
-    app_lists['Camera'] = arguments.get('camera_apps_list', False)
-    app_lists['Microphone'] = arguments.get('microphone_apps_list', False)
-    app_lists['Accessibility'] = arguments.get('accessibility_apps_list', False)
-    app_lists['PostEvent'] = arguments.get('post_event_apps_list', False)
-    app_lists['SystemPolicyAllFiles'] = arguments.get('allfiles_apps_list', False)
-    app_lists['SystemPolicySysAdminFiles'] = arguments.get('sysadmin_apps_list', False)
-    app_lists['AppleEvents'] = arguments.get('events_apps_list', False)
-
-    # Create payload lists in the services_dict
-    for payload in payloads:
-        if app_lists.get(payload):
-            services_dict[payload] = []
-
-    # Handle if no payload arguments are supplied, can't create an empty profile.
-    if not any(app_lists.keys()):
-        print 'You must provide at least one payload type to create a profile.'
-        parser.print_help()
-        sys.exit(1)
-
-    # Create the remaining arguments
-    allow = args.allow_app
-    description = args.payload_description
-    payload_id = args.payload_identifier
-    name = args.payload_name
-    organization = args.payload_org
-    version = args.payload_ver
+        if args.launch_gui:
+            launch_gui(args)
 
     if args.payload_filename:
         filename = args.payload_filename
@@ -590,41 +651,20 @@ def main():
         sign_cert = False
 
     # Init the class
-    tccprofiles = PrivacyProfiles(payload_description=description, payload_name=name, payload_identifier=payload_id, payload_organization=organization, payload_version=version, sign_cert=sign_cert)
+    tccprofiles = PrivacyProfiles(
+        payload_description=args.payload_description,
+        payload_name=args.payload_name,
+        payload_identifier=args.payload_identifier,
+        payload_organization=args.payload_org,
+        payload_version=args.payload_ver,
+        sign_cert=sign_cert
+    )
 
     # Insert the service dict into the template
-    tccprofiles.template['PayloadContent'][0]['Services'] = services_dict
+    tccprofiles.set_services_dict(args)
 
     # Iterate over the payloads dict to build payloads to insert into the template
-    for payload in payloads:
-        if app_lists.get(payload):
-            for app in app_lists[payload]:
-                if payload in ['Camera', 'Microphone']:  # Camera and Microphone payloads can only DENY an app access to that hardware.
-                    _allow = False
-                    allow_statement = 'Deny'
-                else:
-                    _allow = allow
-                    allow_statement = 'Allow'
-
-                if payload == 'AppleEvents':  # AppleEvent payload has additional requirements
-                    if not len(app.split(',')) == 2:
-                        print 'AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app'
-                        sys.exit(1)
-                    else:
-                        sending_app = app.split(',')[0]
-                        receiving_app = app.split(',')[1]
-                        sending_app_name = os.path.basename(os.path.splitext(sending_app)[0])
-                        receiving_app_name = os.path.basename(os.path.splitext(receiving_app)[0])
-                        codesign_result = tccprofiles.getCodeSignRequirements(path=app.split(',')[0])
-                        payload_dict = tccprofiles.buildPayload(app_path=app, allowed=allow, apple_event=True, code_requirement=codesign_result, comment='{} {} to send {} control to {}'.format(allow_statement, sending_app_name, payload, receiving_app_name))
-
-                else:
-                    app_name = os.path.basename(os.path.splitext(app)[0])
-                    codesign_result = tccprofiles.getCodeSignRequirements(path=app)
-                    payload_dict = tccprofiles.buildPayload(app_path=app, allowed=_allow, apple_event=False, code_requirement=codesign_result, comment='{} {} control for {}'.format(allow_statement, payload, app_name))
-
-                if payload_dict not in tccprofiles.template['PayloadContent'][0]['Services'][payload]:
-                    tccprofiles.template['PayloadContent'][0]['Services'][payload].append(payload_dict)
+    tccprofiles.build_profile(allow=args.allow_app)
 
     if filename:
         # Write the plist out to file
@@ -632,7 +672,10 @@ def main():
 
         # Sign it if required
         if tccprofiles.sign_cert:
-            tccprofiles.signProfile(certificate_name=tccprofiles.sign_cert, input_file=filename)
+            tccprofiles.signProfile(
+                certificate_name=tccprofiles.sign_cert,
+                input_file=filename
+            )
     else:
         # Print as formatted plist out to stdout
         print plistlib.writePlistToString(tccprofiles.template).rstrip('\n')
