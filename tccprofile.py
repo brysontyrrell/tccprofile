@@ -528,15 +528,15 @@ def main():
                         print 'AppleEvents applications must be in the format of /Application/Path/EventSending.app,/Application/Path/EventReceiving.app'
                         sys.exit(1)
                     else:
-                        sending_app = app.split(',')[0]
-                        receiving_app = app.split(',')[1]
+                        sending_app = app.split(',')[0].rstrip('/')
+                        receiving_app = app.split(',')[1].rstrip('/')
                         sending_app_name = os.path.basename(os.path.splitext(sending_app)[0])
                         receiving_app_name = os.path.basename(os.path.splitext(receiving_app)[0])
                         codesign_result = tccprofiles.getCodeSignRequirements(path=app.split(',')[0])
                         payload_dict = tccprofiles.buildPayload(app_path=app, allowed=allow, apple_event=True, code_requirement=codesign_result, comment='{} {} to send {} control to {}'.format(allow_statement, sending_app_name, payload, receiving_app_name))
 
                 else:
-                    app_name = os.path.basename(os.path.splitext(app)[0])
+                    app_name = os.path.basename(os.path.splitext(app)[0].rstrip('/'))
                     codesign_result = tccprofiles.getCodeSignRequirements(path=app)
                     payload_dict = tccprofiles.buildPayload(app_path=app, allowed=_allow, apple_event=False, code_requirement=codesign_result, comment='{} {} control for {}'.format(allow_statement, payload, app_name))
 
