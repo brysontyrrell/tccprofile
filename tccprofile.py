@@ -61,6 +61,7 @@ class App(tk.Frame):
 
         self.master.config(menu=tk.Menu(self.master))
 
+        # Apple Events UI
         apple_events_frame = tk.Frame(self)
         apple_events_frame.pack(padx=15, pady=15)
 
@@ -69,7 +70,11 @@ class App(tk.Frame):
         self._app_env_source_var_display = tk.StringVar()
         self._app_env_target_var_display = tk.StringVar()
 
-        tk.Label(apple_events_frame, text='Setup Apple Events', font=('System', 18)).grid(row=0, column=0, columnspan=5, sticky='w')
+        tk.Label(
+            apple_events_frame,
+            text='Setup Apple Events',
+            font=('System', 18)
+        ).grid(row=0, column=0, columnspan=5, sticky='w')
 
         tk.Label(apple_events_frame, text="Source App...").grid(
             row=1, column=0, sticky='w'
@@ -85,7 +90,7 @@ class App(tk.Frame):
         tk.Label(
             apple_events_frame,
             textvariable=self._app_env_source_var_display,
-            width=16
+            width=20
         ).grid(row=2, column=1, sticky='w')
 
         tk.Label(apple_events_frame, text="Target App...").grid(
@@ -102,13 +107,13 @@ class App(tk.Frame):
         tk.Label(
             apple_events_frame,
             textvariable=self._app_env_target_var_display,
-            width=16
+            width=20
         ).grid(row=2, column=3, sticky='w')
 
         tk.Button(
             apple_events_frame,
             text='Add +',
-            command=self.add_apple_event
+            command=self._add_apple_event
         ).grid(row=2, column=4, sticky='e')
 
         self.app_env_table = ttk.Treeview(
@@ -116,6 +121,78 @@ class App(tk.Frame):
         )
         self.app_env_table.grid(row=3, column=0, columnspan=5, sticky='we')
 
+        # Services UI
+        services_frame = tk.Frame(self)
+        services_frame.pack(padx=15, pady=15)
+
+        self._services_target_var = tk.StringVar()
+        self._services_target_var_display = tk.StringVar()
+
+        tk.Label(
+            services_frame,
+            text='Setup Service Permissions',
+            font=('System', 18)
+        ).grid(row=0, column=0, columnspan=5, sticky='w')
+
+        tk.Label(services_frame, text="Target App...").grid(
+            row=1, column=0, sticky='w'
+        )
+        self.app_env_source_btn = tk.Button(
+            services_frame,
+            text='Choose...',
+            command=lambda: self._app_picker('_services_target_var')
+        )
+        self.app_env_source_btn.grid(row=2, column=0, sticky='w')
+
+        tk.Label(
+            services_frame,
+            textvariable=self._services_target_var_display,
+            width=16
+        ).grid(row=2, column=1, sticky='w')
+
+        self._available_services = {
+            'AddressBook': True,
+            'Calendar': True,
+            'Reminders': True,
+            'Photos': True,
+            'Camera': False,
+            'Microphone': False,
+            'Accessibility': True,
+            'PostEvent': True,
+            'SystemPolicyAllFiles': True,
+            'SystemPolicySysAdminFiles': True
+        }
+
+        self._selected_service = tk.StringVar()
+        self._selected_service.set('AddressBook')
+
+        tk.Label(services_frame, text="Service...").grid(
+            row=1, column=2, sticky='w'
+        )
+        tk.OptionMenu(
+            services_frame,
+            self._selected_service,
+            *sorted([i for i in self._available_services.keys()])
+        ).grid(row=2, column=2, sticky='w')
+
+        tk.Label(
+            services_frame,
+            text='',
+            width=6
+        ).grid(row=2, column=3, sticky='w')
+
+        tk.Button(
+            services_frame,
+            text='Add +',
+            command=self._add_service
+        ).grid(row=2, column=4, sticky='e')
+
+        self.services_table = ttk.Treeview(
+            services_frame, columns=('service', 'allow_deny')
+        )
+        self.services_table.grid(row=3, column=0, columnspan=5, sticky='we')
+
+        # Bottom frame for "Save' and 'Quit' buttons
         button_frame = tk.Frame(self)
         button_frame.pack(padx=15, pady=(0, 15), anchor='e')
 
@@ -134,11 +211,16 @@ class App(tk.Frame):
         self.master.destroy()
 
     def _app_picker(self, var_name):
-        app_name = tkFileDialog.askopenfilename(parent=self, filetypes=[('App', '.app',)], initialdir='/Applications', title='Select App')
+        app_name = tkFileDialog.askopenfilename(
+            parent=self,
+            filetypes=[('App', '.app')],
+            initialdir='/Applications',
+            title='Select App'
+        )
         getattr(self, var_name).set(app_name)
         getattr(self, var_name + '_display').set(os.path.basename(app_name))
 
-    def add_apple_event(self):
+    def _add_apple_event(self):
         source_app = self._app_env_source_var.get()
         target_app = self._app_env_target_var.get()
 
@@ -151,6 +233,23 @@ class App(tk.Frame):
         self._app_env_source_var.set('')
         self._app_env_source_var_display.set('')
         self._app_env_target_var_display.set('')
+
+    def _add_service(self):
+        target_app = self._services_target_var.get()
+        selected_service = self._selected_service.get()
+        allow_deny = 'Allow' if self._available_services.get(selected_service) else 'Deny'
+
+        if not target_app:
+            print('Target app not provided')
+            return
+
+        self.services_table.insert(
+            '', 'end',
+            text=target_app,
+            values=(selected_service, allow_deny)
+        )
+        self._services_target_var.set('')
+        self._services_target_var_display.set('')
 
 
 def read_plist(filepath):
