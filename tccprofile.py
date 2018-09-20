@@ -9,6 +9,8 @@ import uuid
 import subprocess
 import sys
 import Tkinter as tk
+import ttk
+import tkFileDialog
 
 # Imports specifically for FoundationPlist
 # PyLint cannot properly find names inside Cocoa libraries, so issues bogus
@@ -45,13 +47,13 @@ class App(tk.Frame):
     def __init__(self, master):
         tk.Frame.__init__(self, master)
         self.pack()
-        self.master.title("Hello World")
+        self.master.title("TCC Profile Generator")
         self.master.resizable(False, False)
         self.master.tk_setPalette(background='#ececec')
 
-        self.master.protocol('WM_DELETE_WINDOW', self.click_cancel)
-        self.master.bind('<Return>', self.click_ok)
-        self.master.bind('<Escape>', self.click_cancel)
+        self.master.protocol('WM_DELETE_WINDOW', self.click_quit)
+        self.master.bind('<Return>', self.click_save)
+        self.master.bind('<Escape>', self.click_quit)
 
         x = (self.master.winfo_screenwidth() - self.master.winfo_reqwidth()) / 2
         y = (self.master.winfo_screenheight() - self.master.winfo_reqheight()) / 3
@@ -59,24 +61,96 @@ class App(tk.Frame):
 
         self.master.config(menu=tk.Menu(self.master))
 
-        dialog_frame = tk.Frame(self)
-        dialog_frame.pack(padx=20, pady=15)
+        apple_events_frame = tk.Frame(self)
+        apple_events_frame.pack(padx=15, pady=15)
 
-        tk.Label(dialog_frame, text="This is your first GUI. (highfive)").pack()
+        self._app_env_source_var = tk.StringVar()
+        self._app_env_target_var = tk.StringVar()
+        self._app_env_source_var_display = tk.StringVar()
+        self._app_env_target_var_display = tk.StringVar()
+
+        tk.Label(apple_events_frame, text='Setup Apple Events', font=('System', 18)).grid(row=0, column=0, columnspan=5, sticky='w')
+
+        tk.Label(apple_events_frame, text="Source App...").grid(
+            row=1, column=0, sticky='w'
+        )
+
+        self.app_env_source_btn = tk.Button(
+            apple_events_frame,
+            text='Choose...',
+            command=lambda: self._app_picker('_app_env_source_var')
+        )
+        self.app_env_source_btn.grid(row=2, column=0, sticky='w')
+
+        tk.Label(
+            apple_events_frame,
+            textvariable=self._app_env_source_var_display,
+            width=16
+        ).grid(row=2, column=1, sticky='w')
+
+        tk.Label(apple_events_frame, text="Target App...").grid(
+            row=1, column=2, sticky='w'
+        )
+
+        self.app_env_target_btn = tk.Button(
+            apple_events_frame,
+            text='Choose...',
+            command=lambda: self._app_picker('_app_env_target_var')
+        )
+        self.app_env_target_btn.grid(row=2, column=2, sticky='w')
+
+        tk.Label(
+            apple_events_frame,
+            textvariable=self._app_env_target_var_display,
+            width=16
+        ).grid(row=2, column=3, sticky='w')
+
+        tk.Button(
+            apple_events_frame,
+            text='Add +',
+            command=self.add_apple_event
+        ).grid(row=2, column=4, sticky='e')
+
+        self.app_env_table = ttk.Treeview(
+            apple_events_frame, columns=('target',)
+        )
+        self.app_env_table.grid(row=3, column=0, columnspan=5, sticky='we')
 
         button_frame = tk.Frame(self)
         button_frame.pack(padx=15, pady=(0, 15), anchor='e')
 
-        tk.Button(button_frame, text='OK', default='active', command=self.click_ok).pack(side='right')
+        tk.Button(button_frame, text='Save', command=self.click_save).pack(
+            side='right'
+        )
+        tk.Button(button_frame, text='Quit', command=self.click_quit).pack(
+            side='right'
+        )
 
-        tk.Button(button_frame, text='Cancel', command=self.click_cancel).pack(side='right')
+    def click_save(self, event=None):
+        print("The user clicked 'Save'")
 
-    def click_ok(self, event=None):
-        print("The user clicked 'OK'")
-
-    def click_cancel(self, event=None):
-        print("The user clicked 'Cancel'")
+    def click_quit(self, event=None):
+        print("The user clicked 'Quit'")
         self.master.destroy()
+
+    def _app_picker(self, var_name):
+        app_name = tkFileDialog.askopenfilename(parent=self, filetypes=[('App', '.app',)], initialdir='/Applications', title='Select App')
+        getattr(self, var_name).set(app_name)
+        getattr(self, var_name + '_display').set(os.path.basename(app_name))
+
+    def add_apple_event(self):
+        source_app = self._app_env_source_var.get()
+        target_app = self._app_env_target_var.get()
+
+        if not all([source_app, target_app]):
+            print('Source and Target not both provided')
+            return
+
+        self.app_env_table.insert('', 'end', text=source_app, values=(target_app,))
+        self._app_env_target_var.set('')
+        self._app_env_source_var.set('')
+        self._app_env_source_var_display.set('')
+        self._app_env_target_var_display.set('')
 
 
 def read_plist(filepath):
@@ -673,7 +747,7 @@ def main():
         if args.launch_gui:
             launch_gui(args)
 
-    tccprofiles = PrivacyProfiles(
+    tcc_profile = PrivacyProfiles(
         payload_description=args.payload_description,
         payload_name=args.payload_name,
         payload_identifier=args.payload_identifier,
@@ -684,12 +758,12 @@ def main():
     )
 
     # Insert the service dict into the template
-    tccprofiles.set_services_dict(args)
+    tcc_profile.set_services_dict(args)
 
     # Iterate over the payloads dict to build payloads
-    tccprofiles.build_profile(allow=args.allow_app)
+    tcc_profile.build_profile(allow=args.allow_app)
 
-    tccprofiles.write()
+    tcc_profile.write()
 
 
 if __name__ == '__main__':
