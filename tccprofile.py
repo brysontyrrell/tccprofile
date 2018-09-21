@@ -123,7 +123,7 @@ class App(tk.Frame):
 
         # Services UI
         services_frame = tk.Frame(self)
-        services_frame.pack(padx=15, pady=15)
+        services_frame.pack(padx=15, pady=15, fill=tk.BOTH)
 
         self._services_target_var = tk.StringVar()
         self._services_target_var_display = tk.StringVar()
@@ -175,11 +175,12 @@ class App(tk.Frame):
             *sorted([i for i in self._available_services.keys()])
         ).grid(row=2, column=2, sticky='w')
 
+        # This is an empty spacer for the grid layout of the frame
         tk.Label(
             services_frame,
             text='',
             width=6
-        ).grid(row=2, column=3, sticky='w')
+        ).grid(row=2, column=3)
 
         tk.Button(
             services_frame,
@@ -191,6 +192,66 @@ class App(tk.Frame):
             services_frame, columns=('service', 'allow_deny')
         )
         self.services_table.grid(row=3, column=0, columnspan=5, sticky='we')
+
+        # Apple Events UI
+        apple_events_frame = tk.Frame(self)
+        apple_events_frame.pack(padx=15, pady=15, fill=tk.BOTH)
+
+        self._app_env_source_var = tk.StringVar()
+        self._app_env_target_var = tk.StringVar()
+        self._app_env_source_var_display = tk.StringVar()
+        self._app_env_target_var_display = tk.StringVar()
+
+        tk.Label(
+            apple_events_frame,
+            text='Setup Apple Events',
+            font=('System', 18)
+        ).grid(row=0, column=0, columnspan=5, sticky='w')
+
+        tk.Label(apple_events_frame, text="Source App...").grid(
+            row=1, column=0, sticky='w'
+        )
+
+        self.app_env_source_btn = tk.Button(
+            apple_events_frame,
+            text='Choose...',
+            command=lambda: self._app_picker('_app_env_source_var')
+        )
+        self.app_env_source_btn.grid(row=2, column=0, sticky='w')
+
+        tk.Label(
+            apple_events_frame,
+            textvariable=self._app_env_source_var_display,
+            width=20
+        ).grid(row=2, column=1, sticky='w')
+
+        tk.Label(apple_events_frame, text="Target App...").grid(
+            row=1, column=2, sticky='w'
+        )
+
+        self.app_env_target_btn = tk.Button(
+            apple_events_frame,
+            text='Choose...',
+            command=lambda: self._app_picker('_app_env_target_var')
+        )
+        self.app_env_target_btn.grid(row=2, column=2, sticky='w')
+
+        tk.Label(
+            apple_events_frame,
+            textvariable=self._app_env_target_var_display,
+            width=20
+        ).grid(row=2, column=3, sticky='w')
+
+        tk.Button(
+            apple_events_frame,
+            text='Add +',
+            command=self._add_apple_event
+        ).grid(row=2, column=4, sticky='e')
+
+        self.app_env_table = ttk.Treeview(
+            apple_events_frame, columns=('target',)
+        )
+        self.app_env_table.grid(row=3, column=0, columnspan=5, sticky='we')
 
         # Bottom frame for "Save' and 'Quit' buttons
         button_frame = tk.Frame(self)
@@ -205,6 +266,15 @@ class App(tk.Frame):
 
     def click_save(self, event=None):
         print("The user clicked 'Save'")
+        desktop_path = os.path.expanduser('~/Desktop')
+        filename = tkFileDialog.asksaveasfilename(
+            parent=self,
+            defaultextension='.mobileconfig',
+            initialdir=desktop_path,
+            initialfile='tccprofile.mobileconfig',
+            title='Save TCC Profile...'
+        )
+        print(filename)
 
     def click_quit(self, event=None):
         print("The user clicked 'Quit'")
