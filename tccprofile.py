@@ -57,7 +57,7 @@ class App(tk.Frame):
         self.master.bind('<Escape>', self.click_quit)
 
         x = (self.master.winfo_screenwidth() - self.master.winfo_reqwidth()) / 2
-        y = (self.master.winfo_screenheight() - self.master.winfo_reqheight()) / 3
+        y = (self.master.winfo_screenheight() - self.master.winfo_reqheight()) / 4
         self.master.geometry("+{}+{}".format(x, y))
 
         self.master.config(menu=tk.Menu(self.master))
@@ -127,7 +127,20 @@ class App(tk.Frame):
             *self._list_signing_certs()
         ).grid(row=7, column=1, columnspan=4, sticky='we')
 
+        # UI Feedback Section
+
+        feedback_frame = tk.Frame(self)
+        feedback_frame.pack(padx=15, fill=tk.BOTH)
+
+        self._feedback_label = tk.Label(
+            feedback_frame,
+            font=("System", 12, "italic"),
+            fg='red'
+        )
+        self._feedback_label.grid(row=0, column=0, sticky='we')
+
         # Services UI
+
         services_frame = tk.Frame(self)
         services_frame.pack(padx=15, pady=15, fill=tk.BOTH)
 
@@ -195,12 +208,15 @@ class App(tk.Frame):
         ).grid(row=2, column=4, sticky='e')
 
         self.services_table = ttk.Treeview(
-            services_frame, columns=('target', 'service', 'allow_deny')
+            services_frame,
+            columns=('target', 'service', 'allow_deny'),
+            height=5
         )
         self.services_table['show'] = 'headings'
         self.services_table.grid(row=3, column=0, columnspan=5, sticky='we')
 
         # Apple Events UI
+
         apple_events_frame = tk.Frame(self)
         apple_events_frame.pack(padx=15, pady=15, fill=tk.BOTH)
 
@@ -256,9 +272,11 @@ class App(tk.Frame):
         ).grid(row=2, column=4, sticky='e')
 
         self.app_env_table = ttk.Treeview(
-            apple_events_frame, columns=('source', 'target')
+            apple_events_frame, columns=('source', 'target'), height=5
         )
         self.app_env_table['show'] = 'headings'
+        self.app_env_table.heading('source', text='Source')
+        self.app_env_table.heading('target', text='Target')
         self.app_env_table.grid(row=3, column=0, columnspan=5, sticky='we')
 
         # Bottom frame for "Save' and 'Quit' buttons
@@ -274,15 +292,30 @@ class App(tk.Frame):
 
     def click_save(self, event=None):
         print("The user clicked 'Save'")
-        desktop_path = os.path.expanduser('~/Desktop')
-        filename = tkFileDialog.asksaveasfilename(
-            parent=self,
-            defaultextension='.mobileconfig',
-            initialdir=desktop_path,
-            initialfile='tccprofile.mobileconfig',
-            title='Save TCC Profile...'
-        )
-        print(filename)
+
+        payload = dict()
+        payload['Description'] = self._payload_desc.get()
+        payload['Name'] = self._payload_name.get()
+        payload['Identifier'] = self._payload_id.get()
+        payload['Organization'] = self._payload_org.get()
+
+        for k, v in payload.items():
+            if not v:
+                self._feedback_label['text'] = \
+                    "Missing input for '{}'".format(k)
+                return
+
+        # The 'PayloadVersion' key MUST be an Integer value
+        _version = self._payload_version.get()
+        try:
+            if float(_version).is_integer():
+                version = int(_version)
+            else:
+                raise ValueError
+        except ValueError:
+            print('Invalid payload version')
+            self._feedback_label['text'] = "The 'Version' must be an integer!"
+            return
 
         app_lists = dict()
 
@@ -301,41 +334,37 @@ class App(tk.Frame):
                 ','.join(self.app_env_table.item(child)["values"])
             )
 
-        # The 'PayloadVersion' key MUST be an Integer value
-        _version = self._payload_version.get()
-        try:
-            if float(_version).is_integer():
-                version = int(_version)
-            else:
-                raise ValueError
-        except ValueError:
-            print('Invalid payload version')
-            # Display error message
+        if not any(app_lists.keys()):
+            self._feedback_label['text'] = 'You must provide at least one ' \
+                                           'payload type to create a profile!'
             return
 
         sign = self._payload_sign.get()
 
+        desktop_path = os.path.expanduser('~/Desktop')
+        filename = tkFileDialog.asksaveasfilename(
+            parent=self,
+            defaultextension='.mobileconfig',
+            initialdir=desktop_path,
+            initialfile='tccprofile.mobileconfig',
+            title='Save TCC Profile...'
+        )
+
         tcc_profile = PrivacyProfiles(
-            payload_description=self._payload_desc.get(),
-            payload_name=self._payload_name.get(),
-            payload_identifier=self._payload_id.get(),
-            payload_organization=self._payload_org.get(),
+            payload_description=payload['Description'],
+            payload_name=payload['Name'],
+            payload_identifier=payload['Identifier'],
+            payload_organization=payload['Organization'],
             payload_version=version,
             sign_cert=None if sign == 'No' else sign,
             filename=filename
         )
 
-        # Insert the service dict into the template
-        try:
-            tcc_profile.set_services_dict(app_lists)
-        except TCCProfileException:
-            print('Error')
-            return
-
-        # Iterate over the payloads dict to build payloads
+        tcc_profile.set_services_dict(app_lists)
         tcc_profile.build_profile(allow=True)
-
         tcc_profile.write()
+
+        self._feedback_label['text'] = ''
 
     def click_quit(self, event=None):
         print("The user clicked 'Quit'")
