@@ -57,7 +57,7 @@ cd tccprofile && chmod +x tccprofile.py
 View the help text for details on the available arguments for the script:
 
 ```bash
-`./tccprofile.py --help`
+./tccprofile.py --help
 ```
 
 Example:
