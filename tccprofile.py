@@ -213,6 +213,9 @@ class App(tk.Frame):
             height=5
         )
         self.services_table['show'] = 'headings'
+        self.services_table.heading('target', text='Target')
+        self.services_table.heading('service', text='Service')
+        self.services_table.heading('allow_deny', text='Allow/Deny')
         self.services_table.grid(row=3, column=0, columnspan=5, sticky='we')
 
         # Apple Events UI
