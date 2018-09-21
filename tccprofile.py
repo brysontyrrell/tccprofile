@@ -6,6 +6,7 @@ import errno
 import os
 import plistlib
 import uuid
+import re
 import subprocess
 import sys
 import Tkinter as tk
@@ -72,14 +73,6 @@ class App(tk.Frame):
             font=('System', 18)
         ).grid(row=0, column=0, columnspan=5, sticky='w')
 
-        """
-        Name
-        Organization
-        Identifier
-        Version
-        Description
-        Sign (OptionMenu populated from Keychain certs)
-        """
         tk.Label(payload_frame, text="Name").grid(
             row=1, column=0, sticky='w'
         )
@@ -121,13 +114,13 @@ class App(tk.Frame):
         self._payload_sign.set('No')
 
         tk.Label(payload_frame, text="Sign Profile?").grid(
-            row=7, column=3, sticky='e'
+            row=7, column=0, sticky='e'
         )
         tk.OptionMenu(
             payload_frame,
             self._payload_sign,
-            ['No']
-        ).grid(row=7, column=4, sticky='e')
+            *self._list_signing_certs()
+        ).grid(row=7, column=1, columnspan=4, sticky='we')
 
         # Services UI
         services_frame = tk.Frame(self)
@@ -287,6 +280,20 @@ class App(tk.Frame):
     def click_quit(self, event=None):
         print("The user clicked 'Quit'")
         self.master.destroy()
+
+    @staticmethod
+    def _list_signing_certs():
+        output = subprocess.check_output(
+            ['/usr/bin/security', 'find-identity', '-p', 'codesigning', '-v']
+        ).split('\n')
+
+        cert_list = ['No']
+        for i in output:
+            r = re.findall(r'"(.*?)"', i)
+            if r:
+                cert_list.extend(r)
+
+        return cert_list
 
     def _app_picker(self, var_name):
         app_name = tkFileDialog.askopenfilename(
