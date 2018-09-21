@@ -277,6 +277,26 @@ class App(tk.Frame):
         )
         print(filename)
 
+        sign = self._payload_sign.get()
+
+        tcc_profile = PrivacyProfiles(
+            payload_description=self._payload_desc.get(),
+            payload_name=self._payload_name.get(),
+            payload_identifier=self._payload_id.get(),
+            payload_organization=self._payload_org.get(),
+            payload_version=self._payload_version.get(),
+            sign_cert=None if sign == 'No' else sign,
+            filename=filename
+        )
+
+        # Insert the service dict into the template
+        tcc_profile.set_services_dict(list())
+
+        # Iterate over the payloads dict to build payloads
+        tcc_profile.build_profile(allow=True)
+
+        tcc_profile.write()
+
     def click_quit(self, event=None):
         print("The user clicked 'Quit'")
         self.master.destroy()
@@ -761,7 +781,8 @@ def parse_args():
         nargs='*',
         dest='camera_apps_list',
         metavar='<app paths>',
-        help='Generate a Camera payload for the specified applications. This will be a DENY payload.',
+        help='Generate a Camera payload for the specified applications. '
+             'This will be a DENY payload.',
         required=False,
     )
 
@@ -771,7 +792,8 @@ def parse_args():
         nargs='*',
         dest='microphone_apps_list',
         metavar='<app paths>',
-        help='Generate a Microphone payload for the specified applications. This will be a DENY payload.',
+        help='Generate a Microphone payload for the specified applications. '
+             'This will be a DENY payload.',
         required=False,
     )
 
@@ -791,7 +813,8 @@ def parse_args():
         nargs='*',
         dest='post_event_apps_list',
         metavar='<app paths>',
-        help='Generate a PostEvent payload for the specified applications to allow CoreGraphics APIs to send CGEvents.',
+        help='Generate a PostEvent payload for the specified applications to '
+             'allow CoreGraphics APIs to send CGEvents.',
         required=False,
     )
 
@@ -801,7 +824,8 @@ def parse_args():
         nargs='*',
         dest='allfiles_apps_list',
         metavar='<app paths>',
-        help='Generate an SystemPolicyAllFiles payload for the specified applications. This applies to all protected system files.',
+        help='Generate an SystemPolicyAllFiles payload for the specified '
+             'applications. This applies to all protected system files.',
         required=False,
     )
 
@@ -811,7 +835,9 @@ def parse_args():
         nargs='*',
         dest='events_apps_list',
         metavar='<app paths>',
-        help='Generate an AppleEvents payload for the specified applications. This allows applications to send restricted AppleEvents to another process',
+        help='Generate an AppleEvents payload for the specified applications. '
+             'This allows applications to send restricted AppleEvents to '
+             'another process',
         required=False,
     )
 
@@ -821,7 +847,9 @@ def parse_args():
         nargs='*',
         dest='sysadmin_apps_list',
         metavar='<app paths>',
-        help='Generate an SystemPolicySysAdminFiles payload for the specified applications.This applies to some files used in system administration.',
+        help='Generate an SystemPolicySysAdminFiles payload for the specified '
+             'applications.This applies to some files used in system '
+             'administration.',
         required=False,
     )
 
@@ -830,7 +858,8 @@ def parse_args():
         action='store_true',
         dest='allow_app',
         default=False,
-        help='Configure the profile to allow control for all apps provided with the --apps command.',
+        help='Configure the profile to allow control for all apps provided '
+             'with the --apps command.',
         required=False
     )
 
@@ -894,7 +923,9 @@ def parse_args():
         nargs=1,
         dest='sign_profile',
         metavar='certificate_name',
-        help='Signs a profile using the specified Certificate Name. To list code signing certificate names: /usr/bin/security find-identity -p codesigning -v',
+        help='Signs a profile using the specified Certificate Name. To list '
+             'code signing certificate names: /usr/bin/security find-identity '
+             '-p codesigning -v',
         required=False,
     )
 
@@ -903,7 +934,8 @@ def parse_args():
         action='store_true',
         default=False,
         dest='launch_gui',
-        help='Launch the GUI and populate the provided values passed via the arguments.',
+        help='Launch the GUI and populate the provided values passed via the '
+             'arguments.',
         required=False
     )
 
