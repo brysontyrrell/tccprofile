@@ -77,6 +77,7 @@ class App(tk.Frame):
             row=1, column=0, sticky='w'
         )
         self._payload_name = tk.Entry(payload_frame, bg='white', width=30)
+        self._payload_name.insert(0, 'TCC Whitelist')
         self._payload_name.grid(row=2, column=0, columnspan=2, sticky='we')
 
         # This is an empty spacer for the grid layout of the frame
@@ -90,24 +91,28 @@ class App(tk.Frame):
             row=1, column=3, sticky='w'
         )
         self._payload_org = tk.Entry(payload_frame, bg='white', width=30)
+        self._payload_org.insert(0, 'My Org Name')
         self._payload_org.grid(row=2, column=3, columnspan=2, sticky='we')
 
         tk.Label(payload_frame, text="Identifier").grid(
             row=3, column=0, sticky='w'
         )
         self._payload_id = tk.Entry(payload_frame, bg='white')
+        self._payload_id.insert(0, 'com.my.tccprofile')
         self._payload_id.grid(row=4, column=0, columnspan=2, sticky='we')
 
         tk.Label(payload_frame, text="Version").grid(
             row=3, column=3, sticky='w'
         )
         self._payload_version = tk.Entry(payload_frame, bg='white')
+        self._payload_version.insert(0, '1')
         self._payload_version.grid(row=4, column=3, columnspan=2, sticky='we')
 
         tk.Label(payload_frame, text="Description").grid(
             row=5, column=0, sticky='w'
         )
         self._payload_desc = tk.Entry(payload_frame, bg='white')
+        self._payload_desc.insert(0, 'TCC Whitelist for various applications')
         self._payload_desc.grid(row=6, column=0, columnspan=5, sticky='we')
 
         self._payload_sign = tk.StringVar()
@@ -190,8 +195,9 @@ class App(tk.Frame):
         ).grid(row=2, column=4, sticky='e')
 
         self.services_table = ttk.Treeview(
-            services_frame, columns=('service', 'allow_deny')
+            services_frame, columns=('target', 'service', 'allow_deny')
         )
+        self.services_table['show'] = 'headings'
         self.services_table.grid(row=3, column=0, columnspan=5, sticky='we')
 
         # Apple Events UI
@@ -250,8 +256,9 @@ class App(tk.Frame):
         ).grid(row=2, column=4, sticky='e')
 
         self.app_env_table = ttk.Treeview(
-            apple_events_frame, columns=('target',)
+            apple_events_frame, columns=('source', 'target')
         )
+        self.app_env_table['show'] = 'headings'
         self.app_env_table.grid(row=3, column=0, columnspan=5, sticky='we')
 
         # Bottom frame for "Save' and 'Quit' buttons
@@ -277,6 +284,35 @@ class App(tk.Frame):
         )
         print(filename)
 
+        app_lists = dict()
+
+        for child in self.services_table.get_children():
+            values = self.services_table.item(child)["values"]
+            if not app_lists.get(values[1]):
+                app_lists[values[1]] = list()
+
+            app_lists[values[1]].append(values[0])
+
+        for child in self.app_env_table.get_children():
+            if not app_lists.get('AppleEvents'):
+                app_lists['AppleEvents'] = list()
+
+            app_lists['AppleEvents'].append(
+                ','.join(self.app_env_table.item(child)["values"])
+            )
+
+        # The 'PayloadVersion' key MUST be an Integer value
+        _version = self._payload_version.get()
+        try:
+            if float(_version).is_integer():
+                version = int(_version)
+            else:
+                raise ValueError
+        except ValueError:
+            print('Invalid payload version')
+            # Display error message
+            return
+
         sign = self._payload_sign.get()
 
         tcc_profile = PrivacyProfiles(
@@ -284,13 +320,17 @@ class App(tk.Frame):
             payload_name=self._payload_name.get(),
             payload_identifier=self._payload_id.get(),
             payload_organization=self._payload_org.get(),
-            payload_version=self._payload_version.get(),
+            payload_version=version,
             sign_cert=None if sign == 'No' else sign,
             filename=filename
         )
 
         # Insert the service dict into the template
-        tcc_profile.set_services_dict(list())
+        try:
+            tcc_profile.set_services_dict(app_lists)
+        except TCCProfileException:
+            print('Error')
+            return
 
         # Iterate over the payloads dict to build payloads
         tcc_profile.build_profile(allow=True)
@@ -318,7 +358,7 @@ class App(tk.Frame):
     def _app_picker(self, var_name):
         app_name = tkFileDialog.askopenfilename(
             parent=self,
-            filetypes=[('App', '.app')],
+            # filetypes=[('App', '.app')],
             initialdir='/Applications',
             title='Select App'
         )
@@ -333,7 +373,7 @@ class App(tk.Frame):
             print('Source and Target not both provided')
             return
 
-        self.app_env_table.insert('', 'end', text=source_app, values=(target_app,))
+        self.app_env_table.insert('', 'end', values=(source_app, target_app))
         self._app_env_target_var.set('')
         self._app_env_source_var.set('')
         self._app_env_source_var_display.set('')
@@ -342,7 +382,8 @@ class App(tk.Frame):
     def _add_service(self):
         target_app = self._services_target_var.get()
         selected_service = self._selected_service.get()
-        allow_deny = 'Allow' if self._available_services.get(selected_service) else 'Deny'
+        allow_deny = 'Allow' if \
+            self._available_services.get(selected_service) else 'Deny'
 
         if not target_app:
             print('Target app not provided')
@@ -350,8 +391,7 @@ class App(tk.Frame):
 
         self.services_table.insert(
             '', 'end',
-            text=target_app,
-            values=(selected_service, allow_deny)
+            values=(target_app, selected_service, allow_deny)
         )
         self._services_target_var.set('')
         self._services_target_var_display.set('')
@@ -466,25 +506,30 @@ class PrivacyProfiles(object):
         # add in <string>/usr/bin/python</string> to the ProgramArguments array _before_ the <string>/path/to/pythonscript.py</string> line.
 
     def set_services_dict(self, args):
-        arguments = vars(args)
-        app_lists = dict()
+        if not isinstance(args, dict):
+            arguments = vars(args)
+            app_lists = dict()
 
-        # Build up args to pass to the class init
-        app_lists['AddressBook'] = arguments.get('address_book_apps_list',
-                                                 False)
-        app_lists['Calendar'] = arguments.get('calendar_apps_list', False)
-        app_lists['Reminders'] = arguments.get('reminders_apps_list', False)
-        app_lists['Photos'] = arguments.get('photos_apps_list', False)
-        app_lists['Camera'] = arguments.get('camera_apps_list', False)
-        app_lists['Microphone'] = arguments.get('microphone_apps_list', False)
-        app_lists['Accessibility'] = arguments.get('accessibility_apps_list',
-                                                   False)
-        app_lists['PostEvent'] = arguments.get('post_event_apps_list', False)
-        app_lists['SystemPolicyAllFiles'] = arguments.get('allfiles_apps_list',
-                                                          False)
-        app_lists['SystemPolicySysAdminFiles'] = arguments.get(
-            'sysadmin_apps_list', False)
-        app_lists['AppleEvents'] = arguments.get('events_apps_list', False)
+            # Build up args to pass to the class init
+            app_lists['AddressBook'] = arguments.get(
+                'address_book_apps_list', False)
+            app_lists['Calendar'] = arguments.get('calendar_apps_list', False)
+            app_lists['Reminders'] = arguments.get('reminders_apps_list', False)
+            app_lists['Photos'] = arguments.get('photos_apps_list', False)
+            app_lists['Camera'] = arguments.get('camera_apps_list', False)
+            app_lists['Microphone'] = arguments.get(
+                'microphone_apps_list', False)
+            app_lists['Accessibility'] = arguments.get(
+                'accessibility_apps_list', False)
+            app_lists['PostEvent'] = arguments.get(
+                'post_event_apps_list', False)
+            app_lists['SystemPolicyAllFiles'] = arguments.get(
+                'allfiles_apps_list', False)
+            app_lists['SystemPolicySysAdminFiles'] = arguments.get(
+                'sysadmin_apps_list', False)
+            app_lists['AppleEvents'] = arguments.get('events_apps_list', False)
+        else:
+            app_lists = args
 
         # Handle if no payload arguments are supplied,
         # Can't create an empty profile.
@@ -929,15 +974,15 @@ def parse_args():
         required=False,
     )
 
-    parser.add_argument(
-        '--lg', '--launch-gui',
-        action='store_true',
-        default=False,
-        dest='launch_gui',
-        help='Launch the GUI and populate the provided values passed via the '
-             'arguments.',
-        required=False
-    )
+    # parser.add_argument(
+    #     '--lg', '--launch-gui',
+    #     action='store_true',
+    #     default=False,
+    #     dest='launch_gui',
+    #     help='Launch the GUI and populate the provided values passed via the '
+    #          'arguments.',
+    #     required=False
+    # )
 
     return parser.parse_args()
 
