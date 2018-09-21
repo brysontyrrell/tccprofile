@@ -61,65 +61,73 @@ class App(tk.Frame):
 
         self.master.config(menu=tk.Menu(self.master))
 
-        # Apple Events UI
-        apple_events_frame = tk.Frame(self)
-        apple_events_frame.pack(padx=15, pady=15)
+        # Payload Details UI
 
-        self._app_env_source_var = tk.StringVar()
-        self._app_env_target_var = tk.StringVar()
-        self._app_env_source_var_display = tk.StringVar()
-        self._app_env_target_var_display = tk.StringVar()
+        payload_frame = tk.Frame(self)
+        payload_frame.pack(padx=15, pady=15, fill=tk.BOTH)
 
         tk.Label(
-            apple_events_frame,
-            text='Setup Apple Events',
+            payload_frame,
+            text='Payload Details',
             font=('System', 18)
         ).grid(row=0, column=0, columnspan=5, sticky='w')
 
-        tk.Label(apple_events_frame, text="Source App...").grid(
+        """
+        Name
+        Organization
+        Identifier
+        Version
+        Description
+        Sign (OptionMenu populated from Keychain certs)
+        """
+        tk.Label(payload_frame, text="Name").grid(
             row=1, column=0, sticky='w'
         )
+        self._payload_name = tk.Entry(payload_frame, bg='white', width=30)
+        self._payload_name.grid(row=2, column=0, columnspan=2, sticky='we')
 
-        self.app_env_source_btn = tk.Button(
-            apple_events_frame,
-            text='Choose...',
-            command=lambda: self._app_picker('_app_env_source_var')
-        )
-        self.app_env_source_btn.grid(row=2, column=0, sticky='w')
-
+        # This is an empty spacer for the grid layout of the frame
         tk.Label(
-            apple_events_frame,
-            textvariable=self._app_env_source_var_display,
-            width=20
-        ).grid(row=2, column=1, sticky='w')
+            payload_frame,
+            text='',
+            width=6
+        ).grid(row=1, column=2)
 
-        tk.Label(apple_events_frame, text="Target App...").grid(
-            row=1, column=2, sticky='w'
+        tk.Label(payload_frame, text="Organization").grid(
+            row=1, column=3, sticky='w'
         )
+        self._payload_org = tk.Entry(payload_frame, bg='white', width=30)
+        self._payload_org.grid(row=2, column=3, columnspan=2, sticky='we')
 
-        self.app_env_target_btn = tk.Button(
-            apple_events_frame,
-            text='Choose...',
-            command=lambda: self._app_picker('_app_env_target_var')
+        tk.Label(payload_frame, text="Identifier").grid(
+            row=3, column=0, sticky='w'
         )
-        self.app_env_target_btn.grid(row=2, column=2, sticky='w')
+        self._payload_id = tk.Entry(payload_frame, bg='white')
+        self._payload_id.grid(row=4, column=0, columnspan=2, sticky='we')
 
-        tk.Label(
-            apple_events_frame,
-            textvariable=self._app_env_target_var_display,
-            width=20
-        ).grid(row=2, column=3, sticky='w')
-
-        tk.Button(
-            apple_events_frame,
-            text='Add +',
-            command=self._add_apple_event
-        ).grid(row=2, column=4, sticky='e')
-
-        self.app_env_table = ttk.Treeview(
-            apple_events_frame, columns=('target',)
+        tk.Label(payload_frame, text="Version").grid(
+            row=3, column=3, sticky='w'
         )
-        self.app_env_table.grid(row=3, column=0, columnspan=5, sticky='we')
+        self._payload_version = tk.Entry(payload_frame, bg='white')
+        self._payload_version.grid(row=4, column=3, columnspan=2, sticky='we')
+
+        tk.Label(payload_frame, text="Description").grid(
+            row=5, column=0, sticky='w'
+        )
+        self._payload_desc = tk.Entry(payload_frame, bg='white')
+        self._payload_desc.grid(row=6, column=0, columnspan=5, sticky='we')
+
+        self._payload_sign = tk.StringVar()
+        self._payload_sign.set('No')
+
+        tk.Label(payload_frame, text="Sign Profile?").grid(
+            row=7, column=3, sticky='e'
+        )
+        tk.OptionMenu(
+            payload_frame,
+            self._payload_sign,
+            ['No']
+        ).grid(row=7, column=4, sticky='e')
 
         # Services UI
         services_frame = tk.Frame(self)
