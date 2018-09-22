@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadDescription</key>
+			<string>VMware Fusion Accessibility Control</string>
+			<key>PayloadDisplayName</key>
+			<string>VMware Accessibility Control</string>
+			<key>PayloadIdentifier</key>
+			<string>com.github.carlashley.F88C5B63-BE30-11E8-AF43-685B35A6E2B9</string>
+			<key>PayloadOrganization</key>
+			<string>My Great Company</string>
+			<key>PayloadType</key>
+			<string>com.apple.TCC.configuration-profile-policy</string>
+			<key>PayloadUUID</key>
+			<string>F88C5B63-BE30-11E8-AF43-685B35A6E2B9</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>Services</key>
+			<dict>
+				<key>Accessibility</key>
+				<array>
+					<dict>
+						<key>Allowed</key>
+						<true/>
+						<key>CodeRequirement</key>
+						<string>identifier "com.vmware.fusion" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = EG7KH642X6</string>
+						<key>Comment</key>
+						<string>Allow Accessibility control for VMware Fusion</string>
+						<key>Identifier</key>
+						<string>com.vmware.fusion</string>
+						<key>IdentifierType</key>
+						<string>bundleID</string>
+					</dict>
+				</array>
+				<key>PostEvent</key>
+				<array>
+					<dict>
+						<key>Allowed</key>
+						<true/>
+						<key>CodeRequirement</key>
+						<string>identifier "com.vmware.fusion" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = EG7KH642X6</string>
+						<key>Comment</key>
+						<string>Allow PostEvent control for VMware Fusion</string>
+						<key>Identifier</key>
+						<string>com.vmware.fusion</string>
+						<key>IdentifierType</key>
+						<string>bundleID</string>
+					</dict>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>PayloadDescription</key>
+	<string>VMware Fusion Accessibility Control</string>
+	<key>PayloadDisplayName</key>
+	<string>VMware Accessibility Control</string>
+	<key>PayloadIdentifier</key>
+	<string>com.github.carlashley</string>
+	<key>PayloadOrganization</key>
+	<string>My Great Company</string>
+	<key>PayloadScope</key>
+	<string>system</string>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>F88D7063-BE30-11E8-97F4-685B35A6E2B9</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>
