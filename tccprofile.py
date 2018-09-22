@@ -1037,8 +1037,8 @@ def main():
         sys.exit(0)
     else:
         args = parse_args()
-        if args.launch_gui:
-            launch_gui(args)
+        # if args.launch_gui:
+        #     launch_gui(args)
 
     tcc_profile = PrivacyProfiles(
         payload_description=args.payload_description,
