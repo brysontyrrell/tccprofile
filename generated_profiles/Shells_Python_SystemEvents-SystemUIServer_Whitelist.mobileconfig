@@ -141,7 +141,7 @@
 						<key>Allowed</key>
 						<true/>
 						<key>CodeRequirement</key>
-						<string>identifier "com.apple.python" and anchor apple</string>
+						<string>identifier "com.apple.pythonw" and anchor apple</string>
 						<key>Comment</key>
 						<string>Allow python to send AppleEvents control to System Events</string>
 						<key>Identifier</key>
