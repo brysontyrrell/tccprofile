@@ -580,7 +580,7 @@ class PrivacyProfiles(object):
         for payload in self.PAYLOADS:
             if self._app_lists.get(payload):
                 for app in self._app_lists[payload]:
-                    if payload in ['Camera', 'Microphone']:  # Camera and Microphone payloads can only DENY an app access to that hardware.
+                    if payload in ['Camera', 'Microphone'] or not allow:  # Camera and Microphone payloads can only DENY an app access to that hardware.
                         _allow = False
                         allow_statement = 'Deny'
                     else:
@@ -686,12 +686,24 @@ class PrivacyProfiles(object):
 
     def _get_code_sign_requirements(self, path):
         """Returns the values for the CodeRequirement key."""
+        def _is_code_signed(path):
+            """Returns True/False if specified path is code signed or not."""
+            cmd = ['/usr/bin/codesign', '-dr', '-', path]
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            result, error = process.communicate()
+
+            if process.returncode is 0:
+                return True
+            elif process.returncode is 1 and 'not signed' in error:
+                return False
+
         if os.path.exists(path.rstrip('/')):
             # Handle situations where path is a script, and shebang is
             # ['/bin/sh', '/bin/bash', '/usr/bin/python']
             mimetype = self._get_file_mime_type(path=path)
             if mimetype in ['x-python', 'x-shellscript']:
-                path = self._read_shebang(app_path=path)
+                if not _is_code_signed(path):  # Only use shebang path if a script is not code signed
+                    path = self._read_shebang(app_path=path)
 
             cmd = ['/usr/bin/codesign', '-dr', '-', path]
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -707,7 +719,6 @@ class PrivacyProfiles(object):
                 result = result[result.index('designated => ') + 1:][0]
                 # result = [x.rstrip('\n') for x in result.splitlines() if x.startswith('designated => ')][0]
                 return result
-
             elif process.returncode is 1 and 'not signed' in error:
                 print 'App at {} is not signed. Exiting.'.format(path)
                 sys.exit(1)
