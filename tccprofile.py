@@ -24,7 +24,11 @@ from Foundation import NSPropertyListMutableContainers  # NOQA
 from Foundation import NSPropertyListXMLFormat_v1_0  # NOQA
 # pylint: enable=E0611
 
-# from pprint import pprint  # NOQA
+__author__ = ['Carl Windus', 'Bryson Tyrrell']
+__license__ = 'Apache License 2.0'
+__version__ = '1.0.1'
+
+VERSION_STRING = 'Version: {} ({}), Authors: {}'.format(__version__, __license__, ', '.join(__author__))
 
 
 # Special thanks to the munki crew for the plist work.
@@ -1015,6 +1019,12 @@ def parse_args():
              'code signing certificate names: /usr/bin/security find-identity '
              '-p codesigning -v',
         required=False,
+    )
+
+    parser.add_argument(
+        '-v', '--version',
+        action='version',
+        version=VERSION_STRING
     )
 
     # parser.add_argument(
