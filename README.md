@@ -12,6 +12,9 @@ The `--allow` argument is applied to _all_ payloads created by this tool with th
 
 If you are uploading these profiles to JAMF, you may need to use the `--sign` argument to ensure the profile uploads correctly.
 
+### Code Signed Scripts
+This utility will check if a script has been code signed, if it has, it will default to creating a profile with the code sign requirements of the script. If the script is not code signed, it will default to the shell path or interpreter path as specified in the shebang line (i.e. `#!/usr/bin/python` or `#!/bin/sh`). This can still fail, however, if the shell or interpreter itself is not code signed. This would be applicable in scenarios where a new version of a shell or python, etc, has been installed on the system. For that reason, it's suggested that using the macOS system shells or python is best practice. Alternatively, code signing the shell/interpreter is possible.
+
 ## Camera and Microphone payloads
 Per Apple's [documentation](https://developer.apple.com/enterprise/documentation/Configuration-Profile-Reference.pdf) on the Privacy payloads, `tccprofile.py` will automatically set the `Allowed` value to `False`, even if the `--allow` flag is used.
 
