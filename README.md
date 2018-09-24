@@ -3,7 +3,42 @@ Creates a mobileconfig profile for TCC configuration in a certain version of mac
 
 Currently it _only_ generates payloads for _application_ binaries, and will generate the same allow settings (i.e. Allow/Deny the app control) for any apps specified.
 
-The applications also need to be installed on the system you're running `tccprofile.py` on.
+It's recommended that whatever app or script you're creating a profile for exists on the "build" system in the same location as it exists on target systems, otherwise you will need to modify the file paths for any app/script that uses the `path` identifier instead of the `bundleID`.
+
+In the example `AppleEvents` payload below for `outset`, I've run `tccprofile.py` against the path `/Users/carl/Desktop/git/outset/pkgroot/usr/local/outset/outset` and that is what will be in the generated profile:
+```
+					<dict>
+						<key>AEReceiverCodeRequirement</key>
+						<string>identifier "com.apple.systemevents" and anchor apple</string>
+						<key>AEReceiverIdentifier</key>
+						<string>com.apple.systemevents</string>
+						<key>AEReceiverIdentifierType</key>
+						<string>bundleID</string>
+						<key>Allowed</key>
+						<true/>
+						<key>CodeRequirement</key>
+						<string>identifier "com.github.outset" and anchor apple generic and certificate leaf[subject.CN] = "Mac Developer: foo@example.org (ABC01FFFGH)" and certificate 1[field.1.2.345.678901.234.5.6.7] /* exists */</string>
+						<key>Comment</key>
+						<string>Allow outset to send AppleEvents control to System Events</string>
+						<key>Identifier</key>
+						<string>/Users/carl/Desktop/git/outset/pkgroot/usr/local/outset/outset</string>
+						<key>IdentifierType</key>
+						<string>path</string>
+					</dict>
+
+```
+
+After the profile is created, you would need to replace that path with the correct path of outset as it would be on a target system:
+```
+<key>Identifier</key>
+<string>/usr/local/outset/outset</string>
+```
+
+To do this programmatically you could generate the profile with one command, and use something like `sed` to correct the file path.
+```bash
+./tccprofile.py --ae git/outset/pkgroot/usr/local/outset/outset,/System/Library/CoreServices/System\ Events.app --allow --pd="Outset AppleEvents TCC Whitelist"  --pi="com.github.carlashley" --pn="Outset AppleEvents Control"  --po="My Great Company" --pv=1  -o Outset_AppleEvents_TCC_Whitelist.mobileconfig
+sed -i '' 's/git\/outset\/pkgroot//g' Outset_AppleEvents_TCC_Whitelist.mobileconfig
+```
 
 #### Notes:
 At this time, the `StaticCode` value in a payload is not implemented in this iteration of `tccprofile.py`. For the time being, if you require this, add it to the profile manually after generating it.
@@ -14,6 +49,10 @@ If you are uploading these profiles to JAMF, you may need to use the `--sign` ar
 
 ### Code Signed Scripts
 This utility will check if a script has been code signed, if it has, it will default to creating a profile with the code sign requirements of the script. If the script is not code signed, it will default to the shell path or interpreter path as specified in the shebang line (i.e. `#!/usr/bin/python` or `#!/bin/sh`). This can still fail, however, if the shell or interpreter itself is not code signed. This would be applicable in scenarios where a new version of a shell or python, etc, has been installed on the system. For that reason, it's suggested that using the macOS system shells or python is best practice. Alternatively, code signing the shell/interpreter is possible.
+
+#### Notes on Creating Profiles for Code Signed Scripts
+When a "plain" text file is code signed, the code sign requirements are stored in several extended attributes, these attributes are not preserved by default when using a tool like `pkgbuild` to build a package. If you plan on distributing code signed scripts in an installer package, you will need to make sure the build tool can preserve the extended attributes.
+
 
 ## Camera and Microphone payloads
 Per Apple's [documentation](https://developer.apple.com/enterprise/documentation/Configuration-Profile-Reference.pdf) on the Privacy payloads, `tccprofile.py` will automatically set the `Allowed` value to `False`, even if the `--allow` flag is used.
@@ -84,7 +123,7 @@ To create an AppleEvent Payload, you must provide _both_ apps as comma separated
 Create payloads for multiple types:
 
 ```bash
-./tccprofile.py --appleevents /Applications/Adobe\ Photoshop\ CC\ 2018/Adobe\ Photoshop\ CC\ 2018.app,/System/Library/CoreServices/Finder.app --sysadminfiles /Applications/Utilities/Terminal.app /Applications/Chess.app --allfiles /usr/sbin/installer /Applications/Dictionary.app --accessibility /Applications/Adobe\ Photoshop\ CC\ 2018/Adobe\ Photoshop\ CC\ 2018.app --payload-description="TCC Whitelist for various applications" --payload-name="TCC Whitelist" --payload-org="My Great Company" --payload-version=1 --payload-identifier="com.carlashley.github" -o TCC_Whitelists.mobileconfig --allow --sign="Certificate Name"
+./tccprofile.py --appleevents /usr/local/outset/outset,/System/Library/CoreServices/System\ Events.app --allfiles /Applications/Utilities/Terminal.app /usr/sbin/installer --accessibility /Applications/Adobe\ Photoshop\ CC\ 2018/Adobe\ Photoshop\ CC\ 2018.app --payload-description="TCC Whitelist for various applications" --payload-name="TCC Whitelist" --payload-org="My Great Company" --payload-version=1 --payload-identifier="com.carlashley.github" -o TCC_Whitelists.mobileconfig --allow --sign="Certificate Name"
 ```
 
 ### GUI Mode
