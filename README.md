@@ -7,25 +7,24 @@ It's recommended that whatever app or script you're creating a profile for exist
 
 In the example `AppleEvents` payload below for `outset`, I've run `tccprofile.py` against the path `/Users/carl/Desktop/git/outset/pkgroot/usr/local/outset/outset` and that is what will be in the generated profile:
 ```
-					<dict>
-						<key>AEReceiverCodeRequirement</key>
-						<string>identifier "com.apple.systemevents" and anchor apple</string>
-						<key>AEReceiverIdentifier</key>
-						<string>com.apple.systemevents</string>
-						<key>AEReceiverIdentifierType</key>
-						<string>bundleID</string>
-						<key>Allowed</key>
-						<true/>
-						<key>CodeRequirement</key>
-						<string>identifier "com.github.outset" and anchor apple generic and certificate leaf[subject.CN] = "Mac Developer: foo@example.org (ABC01FFFGH)" and certificate 1[field.1.2.345.678901.234.5.6.7] /* exists */</string>
-						<key>Comment</key>
-						<string>Allow outset to send AppleEvents control to System Events</string>
-						<key>Identifier</key>
-						<string>/Users/carl/Desktop/git/outset/pkgroot/usr/local/outset/outset</string>
-						<key>IdentifierType</key>
-						<string>path</string>
-					</dict>
-
+<dict>
+	<key>AEReceiverCodeRequirement</key>
+	<string>identifier "com.apple.systemevents" and anchor apple</string>
+	<key>AEReceiverIdentifier</key>
+	<string>com.apple.systemevents</string>
+	<key>AEReceiverIdentifierType</key>
+	<string>bundleID</string>
+	<key>Allowed</key>
+	<true/>
+	<key>CodeRequirement</key>
+	<string>identifier "com.github.outset" and anchor apple generic and certificate leaf[subject.CN] = "Mac Developer: foo@example.org (ABC01FFFGH)" and certificate 1[field.1.2.345.678901.234.5.6.7] /* exists */</string>
+	<key>Comment</key>
+	<string>Allow outset to send AppleEvents control to System Events</string>
+	<key>Identifier</key>
+	<string>/Users/carl/Desktop/git/outset/pkgroot/usr/local/outset/outset</string>
+	<key>IdentifierType</key>
+	<string>path</string>
+</dict>
 ```
 
 After the profile is created, you would need to replace that path with the correct path of outset as it would be on a target system:
