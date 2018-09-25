@@ -44,7 +44,10 @@ At this time, the `StaticCode` value in a payload is not implemented in this ite
 
 The `--allow` argument is applied to _all_ payloads created by this tool with the exception of the `Camera` and `Microphone` payloads (see section below). If you do need to disable specific apps in payloads, modify the profile after generating it.
 
-If you are uploading these profiles to JAMF, you may need to use the `--sign` argument to ensure the profile uploads correctly.
+#### JAMF:
+Pre JAMF 10.7.1 users will need to sign the profile to upload it.
+
+Post JAMF 10.7.1 users are advised to leave the profile unsigned.
 
 ### Code Signed Scripts
 This utility will check if a script has been code signed, if it has, it will default to creating a profile with the code sign requirements of the script. If the script is not code signed, it will default to the shell path or interpreter path as specified in the shebang line (i.e. `#!/usr/bin/python` or `#!/bin/sh`). This can still fail, however, if the shell or interpreter itself is not code signed. This would be applicable in scenarios where a new version of a shell or python, etc, has been installed on the system. For that reason, it's suggested that using the macOS system shells or python is best practice. Alternatively, code signing the shell/interpreter is possible.
