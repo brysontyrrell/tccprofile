@@ -1,6 +1,8 @@
 # tccprofile
 Creates a mobileconfig profile for TCC configuration in a certain version of macOS.
 
+**Note: These profiles can only be deployed via an MDM. Devices must be enroled either through DEP or User Approved MDM.**
+
 Currently it _only_ generates payloads for _application_ binaries, and will generate the same allow settings (i.e. Allow/Deny the app control) for any apps specified.
 
 It's recommended that whatever app or script you're creating a profile for exists on the "build" system in the same location as it exists on target systems, otherwise you will need to modify the file paths for any app/script that uses the `path` identifier instead of the `bundleID`.
