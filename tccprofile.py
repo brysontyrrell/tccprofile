@@ -58,7 +58,6 @@ class App(tk.Frame):
 
         self.master.protocol('WM_DELETE_WINDOW', self.click_quit)
         self.master.bind('<Return>', self.click_save)
-        self.master.bind('<Escape>', self.click_quit)
 
         x = (self.master.winfo_screenwidth() - self.master.winfo_reqwidth()) / 2
         y = (self.master.winfo_screenheight() - self.master.winfo_reqheight()) / 4
@@ -170,7 +169,7 @@ class App(tk.Frame):
         tk.Label(
             services_frame,
             textvariable=self._services_target_var_display,
-            width=16
+            width=20
         ).grid(row=2, column=1, sticky='w')
 
         self._available_services = {
@@ -202,7 +201,7 @@ class App(tk.Frame):
         tk.Label(
             services_frame,
             text='',
-            width=6
+            width=14
         ).grid(row=2, column=3)
 
         tk.Button(
@@ -217,10 +216,22 @@ class App(tk.Frame):
             height=5
         )
         self.services_table['show'] = 'headings'
+
         self.services_table.heading('target', text='Target')
+
         self.services_table.heading('service', text='Service')
+        self.services_table.column('service', anchor='center')
+
         self.services_table.heading('allow_deny', text='Allow/Deny')
+        self.services_table.column('allow_deny', anchor='center')
+
         self.services_table.grid(row=3, column=0, columnspan=5, sticky='we')
+
+        tk.Button(
+            services_frame,
+            text='Remove -',
+            command=lambda: self._remove_table_item('services_table')
+        ).grid(row=4, column=4, sticky='e')
 
         # Apple Events UI
 
@@ -285,6 +296,12 @@ class App(tk.Frame):
         self.app_env_table.heading('source', text='Source')
         self.app_env_table.heading('target', text='Target')
         self.app_env_table.grid(row=3, column=0, columnspan=5, sticky='we')
+
+        tk.Button(
+            apple_events_frame,
+            text='Remove -',
+            command=lambda: self._remove_table_item('app_env_table')
+        ).grid(row=4, column=4, sticky='e')
 
         # Bottom frame for "Save' and 'Quit' buttons
         button_frame = tk.Frame(self)
@@ -431,6 +448,13 @@ class App(tk.Frame):
         )
         self._services_target_var.set('')
         self._services_target_var_display.set('')
+
+    def _remove_table_item(self, table):
+        treeview_obj = getattr(self, table)
+        selected_items = treeview_obj.selection()
+
+        for item in selected_items:
+            treeview_obj.delete(item)
 
 
 def read_plist(filepath):
